@@ -9,7 +9,8 @@ API-2: 条件查询报告（按日期）
 API-3: 条件查询报告(分页)
 API-4: 删除报告
 API-5: 隐藏或公开报告
-API-6: 首页日报获取最新5-50个信息
+API-6: 修改报告名称
+API-7: 首页日报获取最新5-50个信息
 """
 import os
 from fastapi import APIRouter, Depends, Form, UploadFile, HTTPException, Query, Body
@@ -144,7 +145,7 @@ async def get_report_info(
     return {"message": "查询成功!", "reports": reports}
 
 
-@report_router.put("/report-file/{report_id}/")
+@report_router.put("/report-file/{report_id}/", summary="隐藏或公开报告")
 async def change_report_info(
         report_id: int,
         user_token: str = Depends(oauth2_scheme),
@@ -157,6 +158,29 @@ async def change_report_info(
             "UPDATE research_report SET is_active=IF(is_active=0,1,0) "
             "WHERE creator=%s AND id=%s;", (user_id, report_id)
         )
+    return {"message": "修改成功!"}
+
+
+@report_router.put("/report-filename/{report_id}/", summary="修改报告名称")
+async def modify_report_filename(report_id: int, user_token: str = Depends(oauth2_scheme), filename: str = Query(...)):
+    user_id, _ = decipher_user_token(user_token)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Unknown User")
+    with MySqlZ() as cursor:
+        # 查出本报告文件所在的位置
+        cursor.execute("SELECT id,filepath FROM research_report WHERE id=%s;", (report_id, ))
+        report_item = cursor.fetchone()
+        if report_item:
+            filepath = report_item["filepath"]
+            folder, old_name = os.path.split(filepath)
+            old_filename = os.path.join(FILE_STORAGE, filepath)
+            new_filepath = os.path.join(folder, filename)
+            new_filepath = new_filepath.replace("\\", "/")  # 修改windows系统的分隔符，结果为sql路径
+            new_filename = os.path.join(FILE_STORAGE, new_filepath)
+            # 修改文件名
+            new_title = os.path.splitext(filename)[0]
+            cursor.execute("UPDATE research_report SET title=%s,filepath=%s WHERE id=%s;", (new_title, new_filepath, report_id))
+            os.rename(old_filename, new_filename)  # 放在修改数据库后,防止重命名失败而数据库修改了
     return {"message": "修改成功!"}
 
 
