@@ -180,11 +180,13 @@ async def image_code(code_uuid: str):
 @passport_router.get("/user/module-authenticate/", summary="用户当前的模块权限情况")
 async def user_module_authority(
         user_token: str = Depends(verify.oauth2_scheme),
-        query_user: int = Query(...)
+        query_user: int = Query(None)
 ):
     operate_user, _ = verify.decipher_user_token(user_token)
     if not operate_user:
         return {"message": "登录已过期了,重新登录再进行操作!", "user": {}, "modules": []}
+    if query_user is None:
+        query_user = operate_user   # 如果没有查询用户,就是自己查自己
     # 查询用户的模块权限
     with MySqlZ() as cursor:
         cursor.execute(
@@ -197,7 +199,6 @@ async def user_module_authority(
             "FROM user_user_module WHERE user_id=%s;", (user_info["id"])
         )
         data = cursor.fetchall()
-
     return {"message": "查询用户模块权限成功!", "user": user_info, "modules": data}
 
 
