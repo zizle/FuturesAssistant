@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>用户的数据表</title>
+    <script type="text/javascript" src="/static/JS/jquery-1.7.2.min.js"></script>
+    <script type="text/javascript" src="/static/JS/echarts.min.js"></script>
+    <style>
+        body{
+            background-color: rgb(240,240,240);
+            margin: 5px;
+        }
+        .charts .chart-container{
+            width: 600px;
+            display: inline-block;
+            padding: 0 5px 10px 10px;
+            vertical-align: bottom;
+        }
+        .charts input{
+            border:none;
+        }
+        .noChart{
+            width: 200px;
+            height: 50px;
+            position: absolute;
+            top: calc(50% - 25px);
+            left: calc(50% - 100px);
+            color: #F63636
+        }
+    </style>
+</head>
+<body>
+<script>
+let host = "http://127.0.0.1:8000/api/";
+
+// 生成series和图例的函数
+function getSeriesLegend(seriesData, sourceData, sheetHeaders) {
+    let len = seriesData.length;
+    let seriesArray = [];
+    let legend = {"type": "scroll", "bottom": 16, "height": 20, "data":[]};
+    for(let i = 0; i < len; i++) {
+        let optData = seriesData[i];
+        let seriesOption = {
+            type: optData.chart_type,
+            // name: optData.chart_name,
+            symbol: 'circle',
+            name: sheetHeaders[optData.column_index],
+            yAxisIndex: optData.axis_index,
+            data: sourceData.map(item=>{return parseFloat(item[optData.column_index])})
+        };
+        seriesArray.push(seriesOption);
+        legend.data.push(sheetHeaders[optData.column_index],);
+    }
+    return {
+        seriesData: seriesArray,
+        legendData: legend
+    }
+}
+
+// 生成水印
+function generateGraphic(watermark){
+    if(watermark === '' || watermark === undefined){return null}
+    else{
+        return {
+            type: 'group',
+            rotation: Math.PI / 4,
+            bounding: 'raw',
+            right: 80,
+            bottom: 80,
+            z: -100,
+            children: [
+                {
+                    type: 'rect',
+                    left: 'center',
+                    top: 'center',
+                    z:-100,
+                    shape:{width: 400, height: 35},
+                    style:{fill: 'rgba(0,0,0,0.4)'}
+                },
+                {
+                    type: 'text',
+                    left: 'center',
+                    top: 'center',
+                    z: -100,
+                    style: {
+                        fill: 'rgba(255,255,255,0.9)',
+                        text: watermark,
+                        font: 'bold 22px Microsoft YaHei'
+                    }
+                }
+            ]
+        }
+    }
+}
+
+// 获取图形序列和图例
+function getSeasonSeriesLegend(seriesData, sourceData){
+    let optData = seriesData[0];
+    let seriesArray = [];
+    let legend = {"type": "scroll", "bottom": 16, "height": 20, "data":[]};
+    for(let yearKey in sourceData){
+        if (yearKey === "xAxisData"){continue}
+        let yearData = sourceData[yearKey];
+        let seriesOption = {
+            type: "line",
+            symbol: 'circle',
+            name: yearKey,
+            yAxisIndex: 0,
+            data: yearData.map(item=>{return [item["column_0"], item[optData.column_index]]})
+        };
+        seriesArray.push(seriesOption);
+        legend.data.push(yearKey)
+    }
+
+    return {
+        seriesData: seriesArray,
+        legendData: legend
+    }
+}
+
+
+// 生成季节图形的配置
+function generateSeasonOption(baseOption, sourceData, sheetHeaders){
+    let chartTitle = baseOption["title"];
+    let seriesLegend = getSeasonSeriesLegend(baseOption.series_data, sourceData);
+    return {
+        grid: {
+            top: chartTitle["font_size"] + 15,
+            left: 5,
+            right: 5,
+            bottom: 46,
+            show: false,
+            containLabel: true
+        },
+        title:{
+            text: chartTitle["text"],
+            textStyle: {fontSize: chartTitle["font_size"]},
+            left: 'center'
+        },
+        xAxis:{
+            type: 'category',
+            data: sourceData.xAxisData,
+            axisLabel: {
+                rotate: 90,
+                fontSize: 11
+            }
+        },
+        yAxis: baseOption.y_axis,
+        tooltip:{
+            trigger: 'axis',
+            axisPointer: {
+                type: 'cross',
+            }
+        },
+        dataZoom: [
+            {
+                show: true,
+                type: 'slider',
+                height: 20,
+                bottom:0,
+                start: 0,
+                end: 100,
+            }
+        ],
+        series: seriesLegend.seriesData,
+        legend: seriesLegend.legendData,
+        graphic: generateGraphic(baseOption.watermark),
+    };
+}
+
+
+// 生成普通图形的配置
+function generateOption(baseOption, sourceData, sheetHeaders){
+    let chartTitle = baseOption["title"];
+    let seriesLegend = getSeriesLegend(baseOption.series_data, sourceData, sheetHeaders);
+    return {
+        grid: {
+            top: chartTitle["font_size"] + 15,
+            left: 5,
+            right: 5,
+            bottom: 46,
+            show: false,
+            containLabel: true
+        },
+        title:{
+            text: chartTitle["text"],
+            textStyle: {fontSize: chartTitle["font_size"]},
+            left: 'center'
+        },
+        xAxis:{
+            type: 'category',
+            data: sourceData.map(item=>item.column_0),
+            axisLabel: {
+                rotate: 90,
+                fontSize: 11
+            }
+        },
+        yAxis: baseOption.y_axis,
+        tooltip:{
+            trigger: 'axis',
+            axisPointer: {
+                type: 'cross',
+            }
+        },
+        dataZoom: [
+            {
+                show: true,
+                type: 'slider',
+                height: 20,
+                bottom:0,
+                start: 0,
+                end: 100,
+            }
+        ],
+        series: seriesLegend.seriesData,
+        legend: seriesLegend.legendData,
+        graphic: generateGraphic(baseOption.watermark),
+    };
+}
+
+</script>
+{% if has_chart == 0 %}
+<div class="noChart">当前数据没有图形...</div>
+{% endif %}
+<div class="charts">
+    {% for chart in sheet_charts %}
+    <div class="chart-container">
+        <div style="border-bottom: 1px solid #222222">
+            <div id="chart_{{ chart.id }}" style="height:337px; width: 600px;"></div>
+            <div style="margin-bottom: 10px;color:#2f5574;font-weight: bold">
+                <div style="text-indent: 2em;line-height:25px; font-size: 13px">{{chart.decipherment}}</div>
+            </div>
+    <script>
+    $(function () {
+        let charDiv = document.getElementById('chart_{{chart.id}}');
+        let chartObj = echarts.init(charDiv, 'red', {render:'canvas'});
+        $.ajax({
+         type:'GET',
+         url: host + 'chart-option/{{chart.id}}/',  //  请求当前表的配置和数据
+         dataType: 'json',
+         success:function(result){
+             let chart_type = result.chart_type;
+             let option = {};
+             if (chart_type === "normal"){
+                option = generateOption(result.base_option, result.chart_values, result.sheet_headers);
+             }
+             if (chart_type === "season"){
+                option = generateSeasonOption(result.base_option, result.chart_values, result.sheet_headers);
+             }
+             chartObj.setOption(option, true)
+
+             // chart.setOption(result.options);
+         }
+        });
+    })
+    </script>
+    </div>
+    </div>
+    {% endfor %}
+</div>
+</body>
+</html>
