@@ -51,9 +51,10 @@ async def get_short_message(
             (start_time, end_time)
         )
         short_messages = cursor.fetchall()
-    content_model = "<div style='text-indent:30px;line-height:25px;font-size:13px;'>" \
+    content_model = "<div style='text-indent:30px;line-height:28px;'>" \
                     "<span style='font-size:15px;font-weight:bold;color:rgb(233,20,20);'>{}</span>" \
-                    "{}</div>"
+                    "</div>" \
+                    "<div style='text-indent:30px;line-height:28px;'>{}</div>"
     for msg_item in short_messages:
         msg_item["content"] = content_model.format(msg_item["time_str"], msg_item["content"])
     return {"message": "查询成功", "short_messages": short_messages}
