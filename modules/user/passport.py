@@ -17,7 +17,8 @@ from db.redis_z import RedisZ
 from db.mysql_z import MySqlZ
 from configs import logger
 from modules.basic.validate_models import ExchangeLibCN, VarietyGroupCN
-from .models import JwtToken, User, UserInDB, ModuleItem, UserModuleAuthItem, UserClientAuthItem, UserVarietyAuthItem
+from .models import (JwtToken, User, UserInDB, ModuleItem, UserModuleAuthItem, UserClientAuthItem, UserVarietyAuthItem,
+                     ModifyPasswordItem)
 
 
 passport_router = APIRouter()
@@ -489,10 +490,55 @@ async def user_token_logged(
     }
 
 
+@passport_router.post("/modify-password/", summary="用户修改密码")
+async def modify_password(
+        user_token: str = Depends(verify.oauth2_scheme),
+        password_item: ModifyPasswordItem = Body(...)
+):
+    user_id, _ = verify.decipher_user_token(user_token)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="UnAuthenticated!")
+    if password_item.new_password != password_item.confirm_password:
+        raise HTTPException(status_code=400, detail="两次密码输入不一致!")
+    # 加密密码
+    password_hashed = verify.get_password_hash(password_item.new_password)
+    with MySqlZ() as cursor:
+        # 验证旧密码
+        cursor.execute("SELECT id,password_hashed FROM user_user WHERE id=%s;", (user_id,))
+        user_info = cursor.fetchone()
+        if not user_info:
+            raise HTTPException(status_code=402, detail="原密码错误!")
+        if not verify.verify_password(password_item.old_password, user_info["password_hashed"]):
+            raise HTTPException(status_code=402, detail="原密码错误!")
+        cursor.execute(
+            "UPDATE user_user SET password_hashed=%s WHERE id=%s;",
+            (password_hashed, user_id)
+        )
+    return {"message": "修改成功!"}
 
 
-
-
+@passport_router.post("/reset-password/", summary="管理员重置用户密码")
+async def reset_password(user_token: str = Depends(verify.oauth2_scheme), modify_user: int = Body(..., embed=True)):
+    user_id, _ = verify.decipher_user_token(user_token)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="UnAuthenticated!")
+    with MySqlZ() as cursor:
+        cursor.execute("SELECT id, role FROM user_user WHERE id=%s;", (user_id, ))
+        operator_user = cursor.fetchone()
+        if not operator_user:
+            raise HTTPException(status_code=401, detail="UnAuthenticated!")
+        if operator_user["role"] not in ["superuser", "operator"]:
+            raise HTTPException(status_code=402, detail="没有权限进行这个操作!")
+        # 重置用户密码
+        password_hashed = verify.get_password_hash("123456")
+        cursor.execute(
+            "UPDATE user_user SET password_hashed=%s WHERE id=%s LIMIT 1;", (password_hashed, modify_user)
+        )
+        # 查询用户信息
+        cursor.execute("SELECT id,user_code FROM user_user WHERE id=%s;", (modify_user, ))
+        modify_user = cursor.fetchone()
+        user_code = modify_user["user_code"] if modify_user else ''
+    return {"message": "重置密码成功!", "user": {"user_code": user_code, "password": "123456"}}
 
 
 
