@@ -82,3 +82,10 @@ class UserExtensionItem(BaseModel):
     """ 用户的拓展信息 """
     user_id: int
     wx_id: str
+
+
+class ModifyPasswordItem(BaseModel):
+    """ 用户修改密码 """
+    old_password: str
+    new_password: str
+    confirm_password: str

@@ -97,6 +97,34 @@ async def all_users(role: UserRole = Query(...), user_token: str = Depends(oauth
     return {"message": "查询用户成功!", "users": all_user, "query_role": user_info["role"]}
 
 
+@user_view_router.get("/user/info/", summary="获取用户的基本信息")  # 个人中心修改密码
+async def get_user_information(user_token: str = Depends(oauth2_scheme)):
+    user_id, user_code = decipher_user_token(user_token)
+    user_code = user_code if user_code else "未知"
+    today = datetime.today().strftime("%Y-%m-%d")
+    # 查询用户的在线时长
+    with MySqlZ() as cursor:
+        cursor.execute("SELECT user_id,SUM(total_online) AS total_online FROM user_user_online "
+                       "WHERE user_id=%s;", (user_id, ))
+        online_obj = cursor.fetchone()
+        cursor.execute("SELECT user_id,total_online FROM user_user_online "
+                       "WHERE user_id=%s AND online_date=%s;", (user_id, today))
+        today_online_obj = cursor.fetchone()
+    if not online_obj:
+        total_online = 0
+    else:
+        total_online = int(online_obj["total_online"])
+    if not today_online_obj:
+        today_online = 0
+    else:
+        today_online = today_online_obj["total_online"]
+    return {"message": "查询成功!",
+            "user": {"user_code": user_code,
+                     "total_online": total_online,
+                     "today_online": today_online}
+            }
+
+
 @user_view_router.put("/user/info/", summary="用户的基本信息修改")
 async def modify_user_information(
         operator_token: str = Depends(oauth2_scheme),
