@@ -89,3 +89,11 @@ class ModifyPasswordItem(BaseModel):
     old_password: str
     new_password: str
     confirm_password: str
+
+
+class ResetPasswordEmail(BaseModel):
+    """ 通过邮箱重置密码 """
+    email_code: str
+    user_phone: str
+    new_password: str
+    confirm_password: str

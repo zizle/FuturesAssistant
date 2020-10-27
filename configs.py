@@ -17,6 +17,9 @@ SECRET_KEY = "cj3gnb1k2xzfq*odw5y-vts^+cv+p8suw+(_5#va%f70=tvt5mp"
 
 JWT_EXPIRE_SECONDS = 6000
 
+# 系统邮箱
+SYSTEM_EMAIL = "rdyj_fxjc@163.com"
+SYSTEM_EMAIL_AUTH = "LCAWXVQEVNEBBIRF"
 
 # 日志记录
 def logger_handler(app_dir, log_level):
