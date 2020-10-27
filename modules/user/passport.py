@@ -6,8 +6,11 @@
 import re
 import time
 import base64
+import random
+import smtplib
+from email.mime.text import MIMEText
 from datetime import datetime
-from fastapi import APIRouter, Form, File, UploadFile, Depends, Body, Query
+from fastapi import APIRouter, Form, File, UploadFile, Depends, Body, Query, BackgroundTasks
 from fastapi.encoders import jsonable_encoder
 from fastapi.exception_handlers import HTTPException
 from fastapi.responses import StreamingResponse
@@ -15,10 +18,10 @@ from pymysql.err import IntegrityError
 from utils import verify
 from db.redis_z import RedisZ
 from db.mysql_z import MySqlZ
-from configs import logger
+from configs import logger, SYSTEM_EMAIL, SYSTEM_EMAIL_AUTH
 from modules.basic.validate_models import ExchangeLibCN, VarietyGroupCN
 from .models import (JwtToken, User, UserInDB, ModuleItem, UserModuleAuthItem, UserClientAuthItem, UserVarietyAuthItem,
-                     ModifyPasswordItem)
+                     ModifyPasswordItem, ResetPasswordEmail)
 
 
 passport_router = APIRouter()
@@ -539,6 +542,75 @@ async def reset_password(user_token: str = Depends(verify.oauth2_scheme), modify
         modify_user = cursor.fetchone()
         user_code = modify_user["user_code"] if modify_user else ''
     return {"message": "重置密码成功!", "user": {"user_code": user_code, "password": "123456"}}
+
+
+# 发送邮件的后台任务
+def send_email_verify_code(user_phone, user_email):
+    print("发送邮箱验证码")
+    receivers = [user_email]  # 接收邮件，可设置为你的QQ邮箱或者其他邮箱
+    # 生成验证码
+    email_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+    # 将验证码保存到redis
+    value_key = '{}_email_code'.format(user_phone)
+    with RedisZ() as r_conn:
+        r_conn.set(value_key, email_code, 600)  # 10分钟有效
+    mail_msg = """
+            <p>您正在修改《瑞达期货研究院分析决策系统》的登录密码,如不是本人操作请忽略,并请尽快进入系统修改密码.</p>
+            <p>本次验证码是:</p>
+            <p style='font-size:17px;color:rgb(200,20,20)'>{}<p>
+            """.format(email_code)
+    message = MIMEText(mail_msg, 'html', 'utf-8')
+    message['From'] = SYSTEM_EMAIL
+    message['To'] = receivers[0]
+    message['Subject'] = '<瑞达期货研究院分析决策系统>修改密码邮箱验证码'
+    try:
+        smtpObj = smtplib.SMTP(host='smtp.163.com')
+        smtpObj.login(SYSTEM_EMAIL, SYSTEM_EMAIL_AUTH)
+        smtpObj.sendmail(SYSTEM_EMAIL, receivers, message.as_string())
+    except smtplib.SMTPException as e:
+        logger.error("发送邮件错误!{}".format(e))
+
+
+@passport_router.get("/email-code/", summary="用户发送邮箱验证码")
+async def post_email_code(background_tasks: BackgroundTasks, phone: str = Query(..., regex=r'[13456789]{3}[0-9]{8}')):
+    with MySqlZ() as cursor:
+        cursor.execute("SELECT user_code,phone,email FROM user_user WHERE phone=%s;", (phone, ))
+        user_obj = cursor.fetchone()
+        if not user_obj:
+            return {"message": "查无用户,请确认登录手机号正确", "status": 400}
+        # 验证邮箱
+        user_email = user_obj["email"]
+        if not re.match(r'^(\w+\.?)*\w+@(?:\w+\.)\w+$', user_email):
+            return {"message": "预留邮箱格式错误.发送验证码失败", "status": 400}
+        background_tasks.add_task(send_email_verify_code, phone, user_email)
+        return {"message": "验证码已发送!", "status": 200}
+
+
+@passport_router.post("/reset-password/email/", summary="用户通过邮箱重置密码")
+async def reset_password_email(reset_item: ResetPasswordEmail):
+    # 验证手机号
+    if not re.match(r"^[13456789]{3}[0-9]{8}$", reset_item.user_phone):
+        raise HTTPException(status_code=400, detail="手机号格式错误!")
+    # 验证新旧秘密
+    if reset_item.new_password != reset_item.confirm_password:
+        raise HTTPException(status_code=400, detail="两次输入的密码不一致!")
+    if len(reset_item.new_password) < 6 or len(reset_item.new_password) > 20:
+        raise HTTPException(status_code=400, detail="密码为6-20位的字母数字联合")
+    # 通过phone查询保存的邮箱验证码
+    value_key = '{}_email_code'.format(reset_item.user_phone)
+    with RedisZ() as r_conn:
+        real_email_code = r_conn.get(value_key)
+    if not real_email_code or real_email_code != reset_item.email_code:
+        raise HTTPException(status_code=400, detail="邮箱验证码有误")
+    # 修改用户的新密码
+    password_hash = verify.get_password_hash(reset_item.new_password)
+    with MySqlZ() as cursor:
+        cursor.execute(
+            "UPDATE user_user SET password_hashed=%s WHERE phone=%s;",
+            (password_hash, reset_item.user_phone)
+        )
+    return {"message": "密码重置成功!请登录.."}
+
 
 
 

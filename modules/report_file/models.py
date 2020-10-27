@@ -19,3 +19,11 @@ class ReportFileItem(BaseModel):
     relative_varieties: str
     report_type: str
     rename_text: str
+
+
+class ModifyReportInfo(BaseModel):
+    date: str = None
+    variety_en: str = None
+    title: str = None
+    report_type: str = None
+    is_active: int = None

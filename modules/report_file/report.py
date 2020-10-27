@@ -8,20 +8,34 @@ API-1: 网络上传报告文件
 API-2: 条件查询报告（按日期）
 API-3: 条件查询报告(分页)
 API-4: 删除报告
-API-5: 隐藏或公开报告
+API-5: 修改报告的基本信息
 API-6: 修改报告名称
 API-7: 首页日报获取最新5-50个信息
 """
 import os
+import string
+import random
+from datetime import datetime
 from fastapi import APIRouter, Depends, Form, UploadFile, HTTPException, Query, Body
 from utils.verify import oauth2_scheme, decipher_user_token
 from db.mysql_z import MySqlZ
 from utils.constant import VARIETY_ZH, REPORT_TYPES
-from .models import ReportType
+from .models import ReportType, ModifyReportInfo
 from configs import FILE_STORAGE
 
 
 report_router = APIRouter()
+
+
+def generate_unique_filename(file_folder, filename):
+    filepath = os.path.join(file_folder, filename)
+    if os.path.exists(filepath):
+        print("文件存在")
+        new_filename_suffix = ''.join(random.sample(string.ascii_letters, 6))
+        new_filename = "{}_{}".format(filename, new_filename_suffix)
+        generate_unique_filename(file_folder, new_filename)
+    else:
+        return file_folder, filename
 
 
 @report_router.post("/report-file/", summary="上传报告文件")
@@ -106,10 +120,11 @@ async def get_report_with_paginator(
         total_count = cursor.fetchone()["total_count"]
     # 计算总页码
     total_page = int((total_count + page_size - 1) / page_size)
-    # 处理文件名
+    # 处理类型和品种名
     for report_item in reports:
         report_item["type_text"] = REPORT_TYPES.get(report_item["report_type"], report_item["report_type"])
-        report_item["variety_zh"] = VARIETY_ZH.get(report_item["variety_en"], report_item["variety_en"])
+        # report_item["variety_zh"] = VARIETY_ZH.get(report_item["variety_en"], report_item["variety_en"])
+        report_item["variety_zh"] = ';'.join([VARIETY_ZH.get(item, item) for item in report_item["variety_en"].split(";")])
 
     return {"message": "查询成功!", "reports": reports, "page": page, "page_size": page_size, "total_page": total_page}
 
@@ -145,20 +160,69 @@ async def get_report_info(
     return {"message": "查询成功!", "reports": reports}
 
 
-@report_router.put("/report-file/{report_id}/", summary="隐藏或公开报告")
+@report_router.put("/report-file/{report_id}/", summary="修改报告的基本信息")
 async def change_report_info(
         report_id: int,
         user_token: str = Depends(oauth2_scheme),
+        report_item: ModifyReportInfo = Body(...)
 ):
     user_id, _ = decipher_user_token(user_token)
     if not user_id:
         raise HTTPException(status_code=401, detail="Unknown User")
-    with MySqlZ() as cursor:
-        cursor.execute(
-            "UPDATE research_report SET is_active=IF(is_active=0,1,0) "
-            "WHERE creator=%s AND id=%s;", (user_id, report_id)
-        )
-    return {"message": "修改成功!"}
+    # 根据信息修改相应信息
+    if report_item.date is not None:
+        # 验证日期
+        try:
+            t_date = datetime.strptime(report_item.date, "%Y-%m-%d").strftime("%Y-%m-%d")
+        except Exception:
+            pass
+        else:
+            # 修改报告日期
+            with MySqlZ() as cursor:
+                cursor.execute("UPDATE research_report SET `date`=%s WHERE id=%s AND creator=%s;", (t_date, report_id, user_id))
+        return {"message": "修改日期成功!"}
+    if report_item.variety_en is not None:
+        # 修改报告关联品种
+        with MySqlZ() as cursor:
+            cursor.execute("UPDATE research_report SET variety_en=%s WHERE id=%s AND creator=%s;", (report_item.variety_en, report_id, user_id))
+        return {"message": "修改关联品种成功!"}
+    if report_item.title is not None:
+        # 查询原报告信息
+        with MySqlZ() as cursor:
+            cursor.execute("SELECT id,filepath FROM research_report WHERE id=%s;", (report_id,))
+            old_item = cursor.fetchone()
+            if report_item:  # 报告存在
+                filepath = old_item["filepath"]
+                folder, old_name = os.path.split(filepath)
+                old_filename = os.path.join(FILE_STORAGE, filepath)
+                new_folder, new_filename = generate_unique_filename(folder, report_item.title)
+                new_filepath = os.path.join(new_folder, "{}.pdf".format(new_filename))
+                new_filepath = new_filepath.replace("\\", "/")  # 修改windows系统的分隔符，结果为sql路径
+                new_filename = os.path.join(FILE_STORAGE, new_filepath)
+                # 修改名称
+                cursor.execute(
+                    "UPDATE research_report SET title=%s,filepath=%s WHERE id=%s AND creator=%s;",
+                    (report_item.title, new_filepath, report_id, user_id)
+                )
+                os.rename(old_filename, new_filename)  # 放在修改数据库后,防止重命名失败而数据库修改了
+        return {"message": "修改名称成功!"}
+    if report_item.report_type is not None:
+        if report_item.report_type not in REPORT_TYPES.keys():
+            pass
+        else:
+            # 修改报告的类型
+            with MySqlZ() as cursor:
+                cursor.execute("UPDATE research_report SET report_type=%s WHERE id=%s;", (report_item.report_type, report_id))
+            return {"message": "修改类型成功!"}
+    if report_item.is_active is not None:
+        with MySqlZ() as cursor:
+            cursor.execute(
+                "UPDATE research_report SET is_active=IF(is_active=0,1,0) "
+                "WHERE creator=%s AND id=%s;", (user_id, report_id)
+            )
+        return {"message": "修改公开成功!"}
+
+    return {"message": "修改成功!什么也没改变!"}
 
 
 @report_router.put("/report-filename/{report_id}/", summary="修改报告名称")
@@ -181,7 +245,6 @@ async def modify_report_filename(report_id: int, user_token: str = Depends(oauth
             new_title = os.path.splitext(filename)[0]
             cursor.execute("UPDATE research_report SET title=%s,filepath=%s WHERE id=%s;", (new_title, new_filepath, report_id))
             os.rename(old_filename, new_filename)  # 放在修改数据库后,防止重命名失败而数据库修改了
-    return {"message": "修改成功!"}
 
 
 @report_router.delete("/report-file/{report_id}/")
