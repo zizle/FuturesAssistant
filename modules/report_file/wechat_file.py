@@ -6,6 +6,8 @@
 import os
 import time
 import shutil
+import random
+import string
 from datetime import datetime
 from fastapi import APIRouter, Path, Depends, Body, HTTPException
 from fastapi.responses import FileResponse
@@ -14,7 +16,19 @@ from db.mysql_z import MySqlZ
 from configs import WECHAT_FILE_PATH, FILE_STORAGE
 from .models import ReportFileItem
 
+
 wechat_file_router = APIRouter()
+
+
+def generate_unique_filename(file_folder, filename):
+    filepath = os.path.join(file_folder, "{}.pdf".format(filename))
+    abs_filepath = os.path.join(FILE_STORAGE, filepath)
+    if os.path.exists(abs_filepath):
+        new_filename_suffix = ''.join(random.sample(string.ascii_letters, 6))
+        new_filename = "{}_{}".format(filename, new_filename_suffix)
+        return generate_unique_filename(file_folder, new_filename)
+    else:
+        return file_folder, filename
 
 
 def verify_date_time(date_time):
@@ -94,14 +108,17 @@ async def create_report_with_wechat_files(
     # 报告的相对文件路径(日报日期精确到日): REPORTS/{variety_en}/{report_type}/{年-月[-日]}/xxx.pdf
     filepath = os.path.join(WECHAT_FILE_PATH, relative_path)  # 原文件所在路径
     filename = os.path.split(filepath)[1]
-    # 新名称
-    if file_item.rename_text:
-        filename = file_item.rename_text + ".pdf"
+
     title = os.path.splitext(filename)[0]
     variety_en = file_item.relative_varieties.split(';')[0]
     date_folder = file_item.date[:7]  # 以月为单位保存
     # 创建新文件所在路径
     save_folder = "REPORTS/{}/{}/{}/".format(variety_en, file_item.report_type, date_folder)
+    # 新名称
+    if file_item.rename_text:
+        title = file_item.rename_text
+        save_folder, new_filename = generate_unique_filename(save_folder, file_item.rename_text)
+        filename = "{}.pdf".format(new_filename)
     report_folder = os.path.join(FILE_STORAGE, save_folder)
     if not os.path.exists(report_folder):
         os.makedirs(report_folder)
