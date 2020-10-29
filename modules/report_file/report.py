@@ -23,17 +23,16 @@ from utils.constant import VARIETY_ZH, REPORT_TYPES
 from .models import ReportType, ModifyReportInfo
 from configs import FILE_STORAGE
 
-
 report_router = APIRouter()
 
 
 def generate_unique_filename(file_folder, filename):
-    filepath = os.path.join(file_folder, filename)
-    if os.path.exists(filepath):
-        print("文件存在")
+    filepath = os.path.join(file_folder, "{}.pdf".format(filename))
+    abs_filepath = os.path.join(FILE_STORAGE, filepath)
+    if os.path.exists(abs_filepath):
         new_filename_suffix = ''.join(random.sample(string.ascii_letters, 6))
         new_filename = "{}_{}".format(filename, new_filename_suffix)
-        generate_unique_filename(file_folder, new_filename)
+        return generate_unique_filename(file_folder, new_filename)
     else:
         return file_folder, filename
 
@@ -63,9 +62,11 @@ async def create_report(
     if not os.path.exists(report_folder):
         os.makedirs(report_folder)
     filename = report_file.filename
-    if rename_text:
-        filename = rename_text + ".pdf"
     title = os.path.splitext(filename)[0]
+    if rename_text:  # 重名名,需检测重命名结果是否已存在,如果存在需再生成新的结果,否则文件将被直接覆盖
+        title = rename_text
+        save_folder, new_filename = generate_unique_filename(save_folder, title)
+        filename = "{}.pdf".format(new_filename)
     report_path = os.path.join(report_folder, filename)
     sql_path = os.path.join(save_folder, filename)
     # 创建数据库记录
