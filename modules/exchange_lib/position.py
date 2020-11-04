@@ -103,8 +103,13 @@ async def all_variety_net_position(interval_days: int = Query(1)):
     )
     # 倒置列顺序
     all_variety_df = all_variety_df.iloc[:, ::-1]
-    # 间隔取数
-    split_df = all_variety_df.iloc[:, ::interval_days]
+    # 间隔取数(目标数据:今日,前1天,前interval_days * index 天)
+    columns_list = [col for col in range(all_variety_df.shape[1])]
+    extra_columns = columns_list[::interval_days]
+    if interval_days != 1:
+        extra_columns.insert(1, 1)
+    # split_df = all_variety_df.iloc[:, ::interval_days]
+    split_df = all_variety_df.iloc[:, extra_columns]
     # 整理表头
     split_df.columns = split_df.columns.droplevel(0)
     split_df = split_df.reset_index()
@@ -120,6 +125,5 @@ async def all_variety_net_position(interval_days: int = Query(1)):
     final_data = dict()
     for item in data_dict:
         final_data[item['variety_en']] = item
-
     return {"message": "查询全品种净持仓数据成功!", "data": final_data, 'header_keys': header_keys}
 
