@@ -176,12 +176,13 @@ async def save_cffex_daily(
         current_date: str = Depends(verify_date)
 ):
     data_json = jsonable_encoder(sources)
-
     save_sql = "INSERT INTO `cffex_daily` " \
-               "(`date`,`variety_en`,`contract`,`open_price`,`highest`,`lowest`," \
-               "`close_price`,`settlement`,`zd_1`,`zd_2`,`trade_volume`,`empty_volume`,`trade_price`) " \
-               "VALUES (%(date)s,%(variety_en)s,%(contract)s,%(open_price)s,%(highest)s,%(lowest)s," \
-               "%(close_price)s,%(settlement)s,%(zd_1)s,%(zd_2)s,%(trade_volume)s,%(empty_volume)s,%(trade_price)s);"
+               "(`date`,`variety_en`,`contract`,`pre_settlement`,`open_price`,`highest`,`lowest`," \
+               "`close_price`,`settlement`,`zd_1`,`zd_2`,`trade_volume`,`trade_price`,`empty_volume`," \
+               "`increase_volume`) " \
+               "VALUES (%(date)s,%(variety_en)s,%(contract)s,%(pre_settlement)s,%(open_price)s,%(highest)s,%(lowest)s," \
+               "%(close_price)s,%(settlement)s,%(zd_1)s,%(zd_2)s,%(trade_volume)s,%(trade_price)s,%(empty_volume)s," \
+               "%(increase_volume)s);"
     with ExchangeLibDB() as cursor:
         # 查询数据时间
         cursor.execute("SELECT `id`, `date` FROM `cffex_daily` WHERE `date`=%s;" % current_date)

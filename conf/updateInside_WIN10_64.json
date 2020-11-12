@@ -1,7 +1,8 @@
 {
     "VERSION": "1.4.1",
     "SERVER": "http://127.0.0.1:8000/static/UPDATE/INSIDE/",
-    "UPDATE": "<p>1 新增客户端管理</p>\n<p>2 启动检查版本</p>",
+    "UPDATE": "<p>版本1.4.1更新详情:</p><p>1 新增客户端管理</p>\n<p>2 启动检查版本</p>",
+    "FORCE": 0,
     "FILES": {
         "api-ms-win-core-console-l1-1-0.dll": "7699c096202da0db6b07fafc914d60ed",
         "api-ms-win-core-datetime-l1-1-0.dll": "928be2a3fc2e88bda5ca0808324e97c4",
