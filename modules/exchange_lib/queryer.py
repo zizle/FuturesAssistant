@@ -289,7 +289,7 @@ async def query_cffex_daily_sum(query_date: str = Depends(verify_date)):
     query_sql = "SELECT `date`,variety_en," \
                 "sum(trade_volume) as total_trade_volume,sum(trade_price) as total_trade_price, " \
                 "sum(empty_volume) as total_empty_volume " \
-                "FROM `cffex_daily` WHERE `date`=%s GROUP BY variety_en;" % query_date
+                "FROM `cffex_daily_file` WHERE `date`=%s GROUP BY variety_en;" % query_date
     with ExchangeLibDB() as cursor:
         cursor.execute(query_sql)
         result = cursor.fetchall()

@@ -384,7 +384,17 @@ async def delete_sheet(sheet_id: int, user_token: str = Depends(oauth2_scheme)):
             if not operator:
                 raise HTTPException(status_code=401, detail="Unknown User")
             if operator["role"] not in ["superuser", "operator"]:
-                raise HTTPException(status_code=403, detail="Can not Delete Sheet")
+                # 查询用户的品种权限和本表所属品种
+                cursor.execute(
+                    "SELECT usersheet.id FROM industry_user_sheet AS usersheet "
+                    "INNER JOIN user_user_variety AS uservariety "
+                    "ON usersheet.variety_en=uservariety.variety_en "
+                    "AND usersheet.id=%s AND uservariety.user_id=%s;",
+                    (sheet_id, user_id)
+                )
+                user_auth_variety = cursor.fetchone()
+                if not user_auth_variety:  # 用户没有该品种的权限,不能删除
+                    raise HTTPException(status_code=403, detail="Can not Delete Sheet")
         # 如果是删除自己的表(或管理员删除),删除相应的原数据和已作图的表
         cursor.execute(
             "SELECT id,creator,option_file FROM industry_user_chart "

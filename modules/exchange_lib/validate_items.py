@@ -9,6 +9,7 @@ class DailyItem(BaseModel):
     date: str
     variety_en: str
     contract: str
+    pre_settlement: float
     open_price: float
     highest: float
     lowest: float
@@ -18,6 +19,7 @@ class DailyItem(BaseModel):
     zd_2: float
     trade_volume: int
     empty_volume: int
+    increase_volume: int
 
 
 class RankItem(BaseModel):
@@ -75,6 +77,7 @@ class SHFERankItem(RankItem):
 
 
 class CFFEXDailyItem(DailyItem):
+    trade_price: float
     trade_price: float
 
 

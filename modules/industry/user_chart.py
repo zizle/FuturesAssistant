@@ -157,6 +157,16 @@ def get_season_chart_source(source_df):
     return target_values
 
 
+def replace_zero_to_middle_line(data_str):
+    """ 替换数据中的0为中横线 """
+    try:
+        value = float(data_str)  # 转为float,可检测0或0.00或0.000等字符串
+    except Exception:
+        return '-'
+    else:
+        return '-' if value == 0 else data_str
+
+
 def sheet_data_handler(base_option, source_dataframe):
     """ 根据图形配置处理表格的数据 """
     chart_type = base_option["chart_category"]
@@ -181,7 +191,8 @@ def sheet_data_handler(base_option, source_dataframe):
         column_index = series_item["column_index"]
         contain_zero = series_item["contain_zero"]
         if not contain_zero:  # 数据不含0,去0处理
-            values_df = values_df[values_df[column_index] != "0"]
+            values_df[column_index] = values_df[column_index].apply(replace_zero_to_middle_line)
+            # values_df = values_df[values_df[column_index] != "0"]
     values_df = values_df.sort_values(by="column_0")  # 最后进行数据从小到大的时间排序
     # table_show_df.reset_index(inplace=True)  # 重置索引,让排序生效(赋予row正确的值。可不操作,转为json后,索引无用处了)
     #

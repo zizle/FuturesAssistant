@@ -46,6 +46,7 @@ function getSeriesLegend(seriesData, sourceData, sheetHeaders) {
             symbol: 'circle',
             name: sheetHeaders[optData.column_index],
             yAxisIndex: optData.axis_index,
+            connectNulls: true,
             data: sourceData.map(item=>{return parseFloat(item[optData.column_index])})
         };
         seriesArray.push(seriesOption);
@@ -106,6 +107,7 @@ function getSeasonSeriesLegend(seriesData, sourceData){
             symbol: 'circle',
             name: yearKey,
             yAxisIndex: 0,
+            connectNulls: true,
             data: yearData.map(item=>{return [item["column_0"], item[optData.column_index]]})
         };
         seriesArray.push(seriesOption);
