@@ -3,6 +3,11 @@
 # @Time  : 2020-08-21 12:50
 # @Author: zizle
 
+VARIETY_CODES_ALL = [
+    'A', 'AG', 'AL', 'AP', 'AU', 'B', 'BU', 'C', 'CF', 'CJ', 'CS', 'CU', 'CY', 'EB', 'EG', 'FG', 'FU', 'HC', 'I', 'IC',
+    'IF', 'IH', 'J', 'JD', 'JM', 'JR', 'L', 'LR', 'LU', 'M', 'MA', 'NI', 'NR', 'OI', 'P', 'PB', 'PF', 'PG', 'PM', 'PP',
+    'RB', 'RI', 'RM', 'RR', 'RS', 'RU', 'SA', 'SF', 'SM', 'SN', 'SP', 'SR', 'SS', 'T', 'TA', 'TF', 'TS', 'UR', 'V',
+    'WH', 'Y', 'ZC', 'ZN']
 
 # 所有品种对应的中文名
 VARIETY_ZH = {
