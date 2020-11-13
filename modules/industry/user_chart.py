@@ -348,18 +348,26 @@ async def swap_chart_suffix(
 async def chart_display(
         chart_id: int,
         user_token=Depends(oauth2_scheme),
-        is_principal: int = Query(0, ge=0, le=2),
-        is_petit: int = Query(0, ge=0, le=1),
-        is_private: int = Query(0, ge=0, le=1)
+        is_principal: int = Query(None, ge=0, le=2),
+        is_petit: int = Query(None, ge=0, le=1),
+        is_private: int = Query(None, ge=0, le=1)
 ):
     user_id, _ = decipher_user_token(user_token)
     if not user_id:
         raise HTTPException(status_code=401, detail="UnKnown User.")
+
     with MySqlZ() as cursor:
-        cursor.execute(
-            "UPDATE industry_user_chart SET is_principal=%s,is_petit=%s,is_private=%s WHERE id=%s;",
-            (str(is_principal), is_petit, is_private, chart_id)
-        )
+        if is_principal is not None and is_petit is None and is_private is None:
+            update_sql = "UPDATE industry_user_chart SET is_principal=%s WHERE id=%s;"
+            cursor.execute(update_sql, (is_principal, chart_id))
+        elif is_petit is not None and is_principal is None and is_private is None:
+            update_sql = "UPDATE industry_user_chart SET is_petit=%s WHERE id=%s;"
+            cursor.execute(update_sql, (is_petit, chart_id))
+        elif is_private is not None and is_principal is None and is_petit is None:
+            update_sql = "UPDATE industry_user_chart SET is_private=%s WHERE id=%s;"
+            cursor.execute(update_sql, (is_private, chart_id))
+        else:
+            pass
     return {"message": "设置成功!"}
 
 
