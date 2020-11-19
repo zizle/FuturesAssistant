@@ -100,7 +100,7 @@ async def get_report_with_paginator(
 
     if variety_en == "0":
         execute_sql = "SELECT id,`date`,variety_en,title,report_type,filepath,is_active FROM research_report " \
-                      "WHERE report_type=%s ORDER BY `date` DESC LIMIT %s,%s;"
+                      "WHERE report_type=%s ORDER BY `date` DESC,`id` DESC LIMIT %s,%s;"
         execute_params = (report_type, (page-1)*page_size, page_size)
         count_execute_sql = "SELECT COUNT(id) AS total_count FROM research_report " \
                             "WHERE report_type=%s;"
@@ -108,7 +108,7 @@ async def get_report_with_paginator(
     else:
         execute_sql = "SELECT id,`date`,variety_en,title,report_type,filepath,is_active FROM research_report " \
                       "WHERE report_type=%s AND LOCATE(%s,variety_en) > 0 " \
-                      "ORDER BY `date` DESC LIMIT %s,%s;"
+                      "ORDER BY `date` DESC,`id` DESC LIMIT %s,%s;"
         execute_params = (report_type, variety_en, (page-1)*page_size, page_size)
         count_execute_sql = "SELECT COUNT(id) AS total_count FROM research_report " \
                             "WHERE report_type=%s AND LOCATE(%s,variety_en) > 0;"
@@ -290,7 +290,7 @@ async def get_report(report_type: ReportType = Query(...), count: int = Query(..
             "SELECT `date`,variety_en,title,report_type,filepath "
             "FROM research_report "
             "WHERE report_type=%s AND is_active=1 "
-            "ORDER BY `date` DESC LIMIT %s;",
+            "ORDER BY `date` DESC,`id` DESC LIMIT %s;",
             (report_type, count)
         )
         reports = cursor.fetchall()

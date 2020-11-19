@@ -4,7 +4,7 @@
 # @Author: zizle
 
 VARIETY_CODES_ALL = [
-    'A', 'AG', 'AL', 'AP', 'AU', 'B', 'BU', 'C', 'CF', 'CJ', 'CS', 'CU', 'CY', 'EB', 'EG', 'FG', 'FU', 'HC', 'I', 'IC',
+    'A', 'AG', 'AL', 'AP', 'AU', 'B', 'BC', 'BU', 'C', 'CF', 'CJ', 'CS', 'CU', 'CY', 'EB', 'EG', 'FG', 'FU', 'HC', 'I', 'IC',
     'IF', 'IH', 'J', 'JD', 'JM', 'JR', 'L', 'LR', 'LU', 'M', 'MA', 'NI', 'NR', 'OI', 'P', 'PB', 'PF', 'PG', 'PM', 'PP',
     'RB', 'RI', 'RM', 'RR', 'RS', 'RU', 'SA', 'SF', 'SM', 'SN', 'SP', 'SR', 'SS', 'T', 'TA', 'TF', 'TS', 'UR', 'V',
     'WH', 'Y', 'ZC', 'ZN']
@@ -13,6 +13,7 @@ VARIETY_CODES_ALL = [
 VARIETY_ZH = {
     'A': '黄大豆1号',
     'B': '黄大豆2号',
+    'BC': '铜(BC)',
     'C': '玉米',
     'CS': '玉米淀粉',
     'EB': '苯乙烯',
@@ -65,7 +66,7 @@ VARIETY_ZH = {
     'AL': '铝',
     'AU': '黄金',
     'BU': '沥青',
-    'CU': '铜',
+    'CU': '铜(CU)',
     'FU': '燃料油',
     'HC': '热轧卷板',
     'LU': '低硫燃料油',
