@@ -2,6 +2,13 @@
   "WECHAT_FOLDER": "E:/WeChatFiles/WeChat Files/wxid_ebc8cjnovw1f22/FileStorage/File/",
   "FILE_STORAGE": "E:/FILE_STORAGE/",
   "APP_DIR": "F:/AutoApps/MoveReports/",
+  "LOCAL_DB": {
+    "host": "localhost",
+    "port": 3306,
+    "user": "root",
+    "password": "ruida180912mysql",
+    "database": "futures_assistant"
+  },
   "MATCH_TYPE": {
     "日评": "daily",
     "收评": "daily",

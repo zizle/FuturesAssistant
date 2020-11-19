@@ -26,13 +26,8 @@ FILE_FOLDER = configs["WECHAT_FOLDER"]  # 微信自动保存的文件路径
 FILE_STORAGE = configs["FILE_STORAGE"]  # 系统文件夹
 
 APP_DIR = configs["APP_DIR"]
-params = {
-    "host": "localhost",
-    "port": 3306,
-    "user": "root",
-    "password": "mysql",
-    "database": "futures_assistant"
-}
+
+params = configs["LOCAL_DB"]
 
 # 日志记录
 def logger_handler(app_dir, log_level):
@@ -198,7 +193,7 @@ def add_report(files):
 
 def enter_handler():
     now = datetime.datetime.now()
-    if now.strftime("%H:%M") > "16:30":
+    if now.strftime("%H:%M") > "16:00":
         return True
     else:
         return False
