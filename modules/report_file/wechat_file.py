@@ -56,7 +56,7 @@ def find_files(path, replace_str, files_list):
                 {
                     "relative_path": fn, "filename": os.path.split(fn)[1],
                     "file_size": str(round(file_info.st_size / (1024 * 1024), 2)) + "MB",
-                    "create_time":  time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(file_info.st_ctime))
+                    "create_time":  time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(file_info.st_mtime))
                 },
             )
         else:
@@ -105,7 +105,7 @@ async def create_report_with_wechat_files(
     if file_item.report_type not in ["daily", "weekly", "monthly", "annual", "special", "others"]:
         raise HTTPException(status_code=400, detail="Unknown Report Type")
     # 从微信自动保存的文件信息创建报告,
-    # 报告的相对文件路径(日报日期精确到日): REPORTS/{variety_en}/{report_type}/{年-月[-日]}/xxx.pdf
+    # 报告的相对文件路径: REPORTS/{variety_en}/{report_type}/{年-月}/xxx.pdf
     filepath = os.path.join(WECHAT_FILE_PATH, relative_path)  # 原文件所在路径
     filename = os.path.split(filepath)[1]
 
@@ -135,6 +135,6 @@ async def create_report_with_wechat_files(
                 "VALUES (%s,%s,%s,%s,%s,%s);",
                 (file_item.date, user_id, file_item.relative_varieties, title, file_item.report_type, sql_path)
             )
-        shutil.move(filepath, report_path)  # 将文件移动到目标位置
+            shutil.move(filepath, report_path)  # 将文件移动到目标位置
 
     return {"message": "操作成功!"}

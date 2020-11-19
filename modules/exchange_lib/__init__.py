@@ -9,10 +9,12 @@ from fastapi import APIRouter
 from .saver import saver_router
 from .queryer import query_router
 from .position import position_router
+from .artbitrage import arbitrage_router
 
 exchange_router = APIRouter()
 
 exchange_router.include_router(saver_router)
 exchange_router.include_router(query_router)
 exchange_router.include_router(position_router)
+exchange_router.include_router(arbitrage_router)
 
