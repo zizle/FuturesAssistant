@@ -9,13 +9,17 @@ API-3: 添加一个品种
 API-4:
 """
 import re
+from datetime import datetime, timedelta
 from collections import OrderedDict
-from fastapi import APIRouter, Query, Body, HTTPException
-from db.mysql_z import MySqlZ
+from fastapi import APIRouter, Query, Body, HTTPException, Depends
+from db.mysql_z import MySqlZ, ExchangeLibDB
+from db.redis_z import RedisZ
 from pymysql.err import IntegrityError, ProgrammingError
 from .validate_models import VarietyGroup, VarietyGroupCN, ExchangeLib, ExchangeLibCN, VarietyItem
 
 variety_router = APIRouter()
+
+FINANCE = {"IF": "沪深300", "IC": "中证500", "IH": "上证50", "TS": "2年国债", "TF": "5年国债", "T": "10年国债"}
 
 
 # 验证品种
@@ -25,8 +29,26 @@ def verify_variety(variety_en: str):
     return variety_en
 
 
+# 过滤非交易所的品种
+def filter_exchange_others(variety_item):
+    if variety_item["variety_en"] in ['GP', 'GZ', 'WB', 'HG']:
+        return False
+    return True
+
+
+# 过滤掉金融的交易所品种(使用早期设置的)
+def filter_cffex_real(variety_item):
+    if variety_item["variety_en"] in ['IF', 'IH', 'IC', 'TS', 'TF', 'T']:
+        return False
+    return True
+
+
+# 由于系统首次设计把金融品种分为股指，国债，宏观等品种与交易所不符合，所以出现了这个API
 @variety_router.get("/variety/all/", summary="获取所有分组及旗下的品种")
-async def basic_variety_all():
+async def basic_variety_all(is_real: int = Query(2, le=2, ge=0)):
+    # is_real == 0 不做过滤
+    # is_real == 1 过滤掉非交易所的(早期设置的金融品种)
+    # is_real == 2 过滤掉真正的金融品种
     with MySqlZ() as cursor:
         cursor.execute(
             "SELECT `id`,`create_time`,`variety_name`,`variety_en`,`group_name`, `exchange_lib` "
@@ -35,6 +57,12 @@ async def basic_variety_all():
             "ORDER BY `sorted` DESC;",
         )
         all_varieties = cursor.fetchall()
+    if is_real == 1:
+        all_varieties = list(filter(filter_exchange_others, all_varieties))
+    elif is_real == 2:
+        all_varieties = list(filter(filter_cffex_real, all_varieties))
+    else:
+        pass
     varieties = OrderedDict()
     for variety_item in all_varieties:
         variety_item['exchange_name'] = ExchangeLibCN[variety_item['exchange_lib']]
@@ -46,7 +74,7 @@ async def basic_variety_all():
 
 
 @variety_router.get("/variety/", summary="获取分组下的品种")
-async def basic_variety(group: VarietyGroup = Query(...)):
+async def basic_variety(group: VarietyGroup = Query(...), is_real: int = Query(2, ge=0, le=2)):
     with MySqlZ() as cursor:
         cursor.execute(
             "SELECT `id`,`create_time`,`variety_name`,`variety_en`,`group_name`, `exchange_lib` "
@@ -56,6 +84,12 @@ async def basic_variety(group: VarietyGroup = Query(...)):
             (group.name,)
         )
         varieties = cursor.fetchall()
+    if is_real == 1:
+        varieties = list(filter(filter_exchange_others, varieties))
+    elif is_real == 2:
+        varieties = list(filter(filter_cffex_real, varieties))
+    else:
+        pass
     for variety_item in varieties:
         variety_item['exchange_lib'] = ExchangeLibCN[variety_item['exchange_lib']]
         variety_item['group_name'] = VarietyGroupCN[variety_item['group_name']]
@@ -64,7 +98,7 @@ async def basic_variety(group: VarietyGroup = Query(...)):
 
 
 @variety_router.get("/exchange/variety-all/", summary="所有品种以交易所分组")
-async def exchange_variety_all():
+async def exchange_variety_all(is_real: int = Query(2, le=2, ge=0)):
     with MySqlZ() as cursor:
         cursor.execute(
             "SELECT id,variety_name,variety_en,exchange_lib,group_name "
@@ -72,6 +106,12 @@ async def exchange_variety_all():
             "ORDER by sorted;"
         )
         all_varieties = cursor.fetchall()
+    if is_real == 1:
+        all_varieties = list(filter(filter_exchange_others, all_varieties))
+    elif is_real == 2:
+        all_varieties = list(filter(filter_cffex_real, all_varieties))
+    else:
+        pass
     varieties = OrderedDict()
     for variety_item in all_varieties:
         variety_item['exchange_name'] = ExchangeLibCN[variety_item['exchange_lib']]
@@ -113,3 +153,32 @@ async def add_basic_variety(
     return {"message": "添加品种成功!", "new_variety": variety}
 
 
+@variety_router.get("/{variety_en}/contract/", summary="获取品种的合约")
+async def variety_all_contract(variety_en: str = Depends(verify_variety)):
+    # 获取redis中存储的合约
+    with RedisZ() as r_redis:
+        contracts = r_redis.get("{}_contract".format(variety_en))
+        if not contracts:  # 没有获取到合约
+            # 查询品种所属的交易所
+            with MySqlZ() as m_cursor:
+                m_cursor.execute("SELECT exchange_lib,variety_en FROM basic_variety WHERE variety_en=%s;", (variety_en, ))
+                variety_obj = m_cursor.fetchone()
+                if not variety_obj:
+                    raise HTTPException(status_code=400, detail="Variety Error!")
+                # 查询品种的最近一天所有合约
+                table_name = "{}_daily".format(variety_obj["exchange_lib"])
+                query_sql = "SELECT variety_en,contract FROM {} WHERE " \
+                            "`date`=(SELECT MAX(`date`) FROM {}) AND variety_en=%s " \
+                            "GROUP BY contract;".format(table_name, table_name)
+                with ExchangeLibDB() as ex_cursor:
+                    ex_cursor.execute(query_sql, (variety_en, ))
+                    all_contract = ex_cursor.fetchall()
+            # 将数据存入redis
+            current_time = datetime.now()
+            next_day = datetime.strptime(current_time.strftime("%Y%m%d"), "%Y%m%d") + timedelta(days=1)
+            expire_seconds = (next_day - current_time).seconds
+            r_redis.set("{}_contract".format(variety_en), str(list(all_contract)), ex=expire_seconds)
+            contracts = list(all_contract)
+        else:
+            contracts = eval(contracts)
+    return {"message": "查询成功!", "contracts": contracts}
