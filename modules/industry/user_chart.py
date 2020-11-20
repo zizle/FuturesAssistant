@@ -8,7 +8,7 @@ API-1: 保存一个图形的配置
 API-2: 一张表内的所有图形(模板渲染)
 API-3: 单个图形的配置和作图数据
 API-4: 单个品种的所有图形列表(模板渲染/JSON)
-API-5: 获取单个图形的基本信息(不是配置信息)
+API-5: 获取单个图形的基本信息(含基本配置信息)
 API-6: 修改单个图形的解读描述
 API-7: 交换两个图形的排序后缀suffix
 API-8: 修改图形主页显示与品种也显示与否
@@ -26,7 +26,7 @@ from utils.verify import oauth2_scheme, decipher_user_token
 from utils.encryptor import generate_chart_option_filepath
 from db.mysql_z import MySqlZ, VarietySheetDB
 from configs import FILE_STORAGE, logger
-from .models import ChartOption, SwapSuffixItem
+from .models import ChartOption, SwapSuffixItem, ModifyChartOptionItem
 
 chart_router = APIRouter()
 
@@ -308,14 +308,75 @@ async def variety_chart(
 async def chart_base_info(chart_id: int):
     with MySqlZ() as cursor:
         cursor.execute(
-            "SELECT title,variety_en,decipherment,suffix "
+            "SELECT title,variety_en,option_file,decipherment,suffix "
             "FROM industry_user_chart WHERE id=%s;", (chart_id,)
         )
         chart = cursor.fetchone()
+    if chart:
+        # 读取图形的配置信息
+        option_filepath = os.path.join(FILE_STORAGE, chart["option_file"])
+        with open(option_filepath, 'r', encoding='utf8') as fop:
+            chart_options = json.load(fop)
+
+        # 左轴配置
+        y_axises = chart_options["y_axis"]
+        left_axis = y_axises[0]
+        # 左轴
+        chart["left_axis"] = {
+            "name": left_axis.get("name", ""), "min": left_axis.get("min", ''), "max": left_axis.get("max", '')
+        }
+        # 右轴
+        if len(y_axises) > 1:
+            right_axis = y_axises[1]
+            chart["right_axis"] = {
+                "name": right_axis.get("name", ""), "min": right_axis.get("min", ''), "max": right_axis.get("max", '')
+            }
+        # 起始时间
+        chart["start_year"] = chart_options["start_year"]
+        chart["end_year"] = chart_options["end_year"]
 
     return {"message": "查询成功!", "data": chart}
 
 
+@chart_router.put("/chart/{chart_id}/", summary="修改图形的基本配置")
+async def modify_chart_option(chart_id: int, option_item: ModifyChartOptionItem = Body(...)):
+    with MySqlZ() as m_cursor:
+        m_cursor.execute("SELECT id,option_file FROM industry_user_chart WHERE id=%s;", (chart_id,))
+        chart_obj = m_cursor.fetchone()
+        if not chart_obj:
+            raise HTTPException(status_code=400, detail='Chart Not Found')
+        option_filepath = os.path.join(FILE_STORAGE, chart_obj["option_file"])
+        with open(option_filepath, 'r', encoding='utf8') as fp:
+            option_json = json.load(fp)
+        # 修改文件option
+        y_axises = option_json['y_axis']
+        # 左轴数据
+        left_y = y_axises[0]
+        left_y['name'] = option_item.left_name
+        if option_item.left_min:
+            left_y['min'] = int(option_item.left_min)
+        if option_item.left_max:
+            left_y['max'] = int(option_item.left_max)
+        if len(y_axises) > 1:  # 有右轴
+            right_y = y_axises[1]
+            right_y['name'] = option_item.right_name
+            if option_item.right_min:
+                right_y['min'] = int(option_item.right_min)
+            if option_item.right_max:
+                right_y['max'] = int(option_item.right_max)
+        option_json['start_year'] = option_item.start_year if option_item.start_year else '0'
+        option_json['end_year'] = option_item.end_year if option_item.end_year else '0'
+        # 写入数据库(修改解说)
+        m_cursor.execute(
+            "UPDATE industry_user_chart SET decipherment=%s WHERE id=%s;", (option_item.decipherment, chart_id)
+        )
+        # 修改配置
+        with open(option_filepath, 'w', encoding='utf-8') as fp:
+            json.dump(option_json, fp, indent=4)
+    return {"message": "修改成功!"}
+
+
+# 功能整合进.put("/chart/{chart_id}/")本API为旧版本留存
 @chart_router.put("/chart-decipherment/{chart_id}/", summary="修改图形的解读信息")
 async def chart_decipherment(
         chart_id: int,
@@ -359,7 +420,7 @@ async def chart_display(
     with MySqlZ() as cursor:
         if is_principal is not None and is_petit is None and is_private is None:
             update_sql = "UPDATE industry_user_chart SET is_principal=%s WHERE id=%s;"
-            cursor.execute(update_sql, (is_principal, chart_id))
+            cursor.execute(update_sql, (str(is_principal), chart_id))
         elif is_petit is not None and is_principal is None and is_private is None:
             update_sql = "UPDATE industry_user_chart SET is_petit=%s WHERE id=%s;"
             cursor.execute(update_sql, (is_petit, chart_id))
