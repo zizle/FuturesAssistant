@@ -52,7 +52,7 @@ async def get_update_folder(
     user_id, _ = decipher_user_token(user_token)
     if not user_id:
         raise HTTPException(status_code=401, detail="Unknown User")
-    client = encryption_uuid(client)  # 加密uuid与数据库对应
+    client = encryption_uuid(client, user_id)  # 加密uuid与数据库对应
     with MySqlZ() as cursor:
         cursor.execute(
             "SELECT varitytb.variety_name,grouptb.group_name,foldertb.folder "
