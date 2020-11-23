@@ -48,5 +48,15 @@ class UpdateFolderItem(BaseModel):
     group_id: int
 
 
+class ModifyChartOptionItem(BaseModel):
+    left_name: str
+    left_min: str
+    left_max: str
+    right_name: str
+    right_min: str
+    right_max: str
+    start_year: str
+    end_year: str
+    decipherment: str
 
 
