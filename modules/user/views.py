@@ -30,11 +30,13 @@ async def get_phone(phone: str = Query(..., min_length = 11, max_length = 11, re
 
 @user_view_router.put("/user/online/", summary="用户在线时间累计")
 async def update_user_online(
-        machine_uuid: str = Query(..., min_length = 36, max_length = 36),
+        machine_uuid: str = Query(..., min_length=36, max_length=42),
         token: str = Depends(oauth2_scheme)
 ):
     user_id, user_code = decipher_user_token(token)
     today_str = datetime.today().strftime("%Y-%m-%d")
+    # 处理uuid(由于2020.11.23修改的客户端重复问题,用户自动登录后客户端为保存machine_uuid只能由此处理)兼容旧版
+    machine_uuid = "{}-{}".format(machine_uuid.rsplit('-', 1)[0], "%04d" % (user_id if user_id else 0))
     with MySqlZ() as cursor:
         cursor.execute("SELECT `id`,machine_uuid FROM `basic_client` WHERE machine_uuid=%s;", machine_uuid)
         client_info = cursor.fetchone()

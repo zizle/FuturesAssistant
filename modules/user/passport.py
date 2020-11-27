@@ -377,28 +377,32 @@ async def modify_client_authority(
                 # 新增客户端信息
                 # 生成用户使用的machine_id:
                 machine_uuid = "{}-{}".format(raw_uuid_list[0], "%04d" % modify_item.modify_user)
-                cursor.execute(
-                    "INSERT IGNORE INTO basic_client (machine_uuid,is_manager) "
-                    "VALUES (%s,%s);",
-                    (machine_uuid, client_obj["is_manager"])
-                )
-                new_client_id = cursor._instance.insert_id()
-                if new_client_id == 0:  # 新生成的客户端uuid是存在的
-                    cursor.execute("SELECT id FROM basic_client WHERE machine_uuid=%s;", (machine_uuid, ))
-                    new_client_id = cursor.fetchone()["id"]
-                    # 直接更新
+                # 查询是否存在
+                cursor.execute("SELECT id FROM basic_client WHERE machine_uuid=%s;", (machine_uuid,))
+                real_user_client = cursor.fetchone()
+                if real_user_client:  # 存在
+                    real_client_id = real_user_client["id"]
+                    # 更新可登录
                     cursor.execute(
                         "UPDATE user_user_client SET expire_date=%s "
                         "WHERE user_id=%s AND client_id=%s;",
-                        (modify_item.expire_date, modify_item.modify_user, new_client_id)
+                        (modify_item.expire_date, modify_item.modify_user, real_client_id)
                     )
                 else:
-                    # 增加可登录信息
+                    # 增加可登录的客户端
+                    cursor.execute(
+                        "INSERT IGNORE INTO basic_client (machine_uuid,is_manager) "
+                        "VALUES (%s,%s);",
+                        (machine_uuid, client_obj["is_manager"])
+                    )
+                    real_client_id = cursor._instance.insert_id()
+                    # 增加可登录信息库
                     cursor.execute(
                         "INSERT INTO user_user_client (user_id, client_id, expire_date) "
                         "VALUES (%s,%s,%s);",
-                        (modify_item.modify_user, new_client_id, modify_item.expire_date)
+                        (modify_item.modify_user, real_client_id, modify_item.expire_date)
                     )
+
             else:  # 不是为0000的客户端
                 # 增加可登录信息
                 cursor.execute(
@@ -486,7 +490,7 @@ async def modify_client_authority(
 
 @passport_router.get("/user/token-login/", summary="使用TOKEN进行自动登录")
 async def user_token_logged(
-        client: str = Query(..., min_length = 36, max_length = 36),
+        client: str = Query(..., min_length=36, max_length=36),
         token: str = Depends(verify.oauth2_scheme)
 ):
     user_id, user_code = verify.decipher_user_token(token)
@@ -498,11 +502,6 @@ async def user_token_logged(
         user_info = cursor.fetchone()
         if not user_info:
             raise HTTPException(status_code=401, detail="登录失败!USER NOT FOUND!")
-
-        cursor.execute("SELECT `id`,is_manager FROM basic_client WHERE machine_uuid=%s;", (client, ))
-        client_info = cursor.fetchone()
-        if not client_info:
-            raise HTTPException(status_code=401, detail="登录失败!INVALID CLIENT!")
 
         today_str = datetime.today().strftime("%Y-%m-%d")
         # 1 创建今日在线的数据库
@@ -517,13 +516,18 @@ async def user_token_logged(
                 (user_info["id"], today_str, 0)
             )
         # 2 非超管和运营查询当前用户是否能在这个客户端登录
+        machine_uuid = encryption_uuid(client, user_id)
         if user_info["role"] not in ["superuser", "operator"]:
+            cursor.execute("SELECT `id`,is_manager FROM basic_client WHERE machine_uuid=%s;", (machine_uuid,))
+            client_info = cursor.fetchone()
+            if not client_info:
+                raise HTTPException(status_code=401, detail="登录失败!INVALID CLIENT!")
             cursor.execute(
                 "SELECT userclient.id, userclient.user_id FROM user_user_client AS userclient "
                 "INNER JOIN basic_client AS clienttb "
                 "ON userclient.client_id=clienttb.id AND userclient.user_id=%s AND clienttb.machine_uuid=%s "
                 "AND userclient.expire_date>%s;",
-                (user_info["id"], client, today_str)
+                (user_info["id"], machine_uuid, today_str)
             )
             is_client_accessed = cursor.fetchone()
             if not is_client_accessed:
@@ -531,6 +535,7 @@ async def user_token_logged(
     return {
         "message": "token登录成功!",
         "show_username": user_info["username"],
+        "machine_uuid": machine_uuid
     }
 
 

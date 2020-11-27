@@ -18,7 +18,7 @@ async def create_update_folder(
     user_id, _ = decipher_user_token(user_token)
     if not user_id:
         raise HTTPException(status_code=401, detail="Unknown User")
-    body_item.client = encryption_uuid(body_item.client)  # 加密改变uuid与客户端数据库对应
+    body_item.client = encryption_uuid(body_item.client, user_id)  # 加密改变uuid与客户端数据库对应
     # 查询增加或更新
     with MySqlZ() as cursor:
         cursor.execute(
