@@ -104,6 +104,7 @@ def read_data(query_date):
         rank_df = pd.DataFrame(all_rank, columns=['date', 'variety_en', 'contract', 'long_position', 'short_position'])
     # 合并数据框
     result_df = pd.merge(daily_df, rank_df, on=['date', 'variety_en', 'contract'], how='outer')
+    # result_df = result_df.drop_duplicates(subset=['date', 'variety_en', 'contract'], keep='first')
     # 填写空值
     result_df = result_df.fillna(0)
     # date转为int时间戳
@@ -115,7 +116,18 @@ def read_data(query_date):
     return result_df.to_dict(orient='records')
 
 
+def filter_items(item):
+    # 过滤数据
+    if 'EFP' in item['variety_en'].strip():
+        return False
+    else:
+        return True
+
+
 def save_data(items):
+    # items.pop(-1)
+    items = list(filter(filter_items, items))
+    print(len(items))
     # for item in items:
     #     print(item)
     if not items:
@@ -136,7 +148,7 @@ def save_data(items):
 
 
 if __name__ == '__main__':
-    for op_date in date_generator('20170101', '20171231'):  #20170104数据报错
+    for op_date in date_generator('20201101', '20201109'):
         result = read_data(op_date)
         save_data(result)
         # print(int(op_date.timestamp()))

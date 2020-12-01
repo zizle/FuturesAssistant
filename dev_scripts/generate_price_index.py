@@ -96,19 +96,25 @@ def read_data(query_date):
     result_df['date'] = result_df['date'].apply(lambda x: int(datetime.datetime.strptime(x, '%Y%m%d').timestamp()))
     # 去重
     result_df.drop_duplicates(inplace=True)
+    # 还是重复继续去重
+    result_df.drop_duplicates(subset=['date', 'variety_en'], keep='first', inplace=True)
     return result_df.to_dict(orient='records')
+
+
+def filter_items(item):
+    # 过滤数据
+    if 'EFP' in item['variety_en'].strip():
+        return False
+    else:
+        return True
 
 def save_data(items):
     if not items:
         print("数据为空!")
         return
-
-    # items.pop(-1)  #  20020730 RU持仓一致手动删除成交量低的
-    # items.pop(-3)  # 20060818 WT持仓一致手动删除成交量低的
-    # items.pop(-3)  # 20060905 WT持仓一致手动删除成交量低的
-    # items.pop(2)  # 20060915 B的持仓一致手动删除成交量低的
     # for i in items:
     #     print(i)
+    items = list(filter(filter_items, items))
     with MySqlZ() as m_cursor:
         count = m_cursor.executemany(
             "INSERT INTO contribute_price_index"
@@ -118,8 +124,9 @@ def save_data(items):
         )
     print("增加{}个数据.".format(count))
 
+
 if __name__ == '__main__':
-    for op_date in date_generator('20070101', '20071231'):  # current 0918等待中
+    for op_date in date_generator('20200101', '20201109'):
         result = read_data(op_date)
         save_data(result)
         # save_data(result)
