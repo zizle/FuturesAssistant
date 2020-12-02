@@ -20,6 +20,8 @@ class JwtToken(BaseModel):
     show_username: str
     access_token: str
     token_type: str
+    machine_uuid: str
+    message: str
 
 
 class User(BaseModel):
@@ -30,9 +32,17 @@ class User(BaseModel):
     email: str
     role: str
     is_active: Optional[bool] = True
+    machine_uuid: str
 
 
-class UserInDB(User):
+class UserInDB(BaseModel):
+    id: int = None
+    user_code: str
+    username: str
+    phone: str
+    email: str
+    role: str
+    is_active: Optional[bool] = True
     password_hashed: str
 
 

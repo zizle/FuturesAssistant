@@ -15,6 +15,7 @@ API-7: 首页日报获取最新5-50个信息
 import os
 import string
 import random
+import shutil
 from datetime import datetime
 from fastapi import APIRouter, Depends, Form, UploadFile, HTTPException, Query, Body
 from utils.verify import oauth2_scheme, decipher_user_token
@@ -213,7 +214,34 @@ async def change_report_info(
         else:
             # 修改报告的类型
             with MySqlZ() as cursor:
-                cursor.execute("UPDATE research_report SET report_type=%s WHERE id=%s;", (report_item.report_type, report_id))
+                # 查询文件所在位置
+                cursor.execute("SELECT id,report_type,filepath FROM research_report WHERE id=%s;", (report_id, ))
+                report_obj = cursor.fetchone()
+                if report_obj:
+                    old_relative_path_list = report_obj["filepath"].split('/')
+                    old_relative_path_list[2] = report_item.report_type
+                    new_relative_path = '/'.join(old_relative_path_list)
+                    old_abs_path = os.path.join(FILE_STORAGE, report_obj["filepath"])
+                    new_abs_path = os.path.join(FILE_STORAGE, new_relative_path)
+                    new_folder, new_filename = os.path.split(os.path.splitext(new_abs_path)[0])
+                    # 目标文件夹中若存在文件需生成唯一的文件名称
+                    new_folder, new_filename = generate_unique_filename(new_folder, new_filename)
+                    # 新的文件绝对路径
+                    new_abs_path = os.path.join(new_folder, "{}.pdf".format(new_filename))
+                    new_abs_path = new_abs_path.replace('\\', '/')
+                    # 得到新的相对路径
+                    new_relative_path = new_abs_path.replace(FILE_STORAGE, '')
+                    # 新的文件夹若不存在需创建
+                    new_folder = os.path.split(new_abs_path)[0]
+                    if not os.path.exists(new_folder):
+                        os.makedirs(new_folder)
+                    # 更新数据库并移动文件
+                    cursor.execute(
+                        "UPDATE research_report SET report_type=%s,filepath=%s WHERE id=%s;",
+                        (report_item.report_type, new_relative_path, report_id)
+                    )
+                    # 移动文件
+                    shutil.move(old_abs_path, new_abs_path)
             return {"message": "修改类型成功!"}
     if report_item.is_active is not None:
         with MySqlZ() as cursor:

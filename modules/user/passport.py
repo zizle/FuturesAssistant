@@ -16,6 +16,7 @@ from fastapi.exception_handlers import HTTPException
 from fastapi.responses import StreamingResponse
 from pymysql.err import IntegrityError
 from utils import verify
+from utils.client import encryption_uuid
 from db.redis_z import RedisZ
 from db.mysql_z import MySqlZ
 from configs import logger, SYSTEM_EMAIL, SYSTEM_EMAIL_AUTH
@@ -27,10 +28,6 @@ from .models import (JwtToken, User, UserInDB, ModuleItem, UserModuleAuthItem, U
 passport_router = APIRouter()
 
 
-class ClientNotFound(Exception):
-    """ 客户端不存在 """
-
-
 async def checked_image_code(input_code: str = Form(...), code_uuid: str = Form(...)):
     """ 验证图形验证码的依赖项 """
     with RedisZ() as r:
@@ -40,15 +37,17 @@ async def checked_image_code(input_code: str = Form(...), code_uuid: str = Form(
     return True
 
 
-async def get_default_role(client_token: str = Form(...)):
+async def get_default_role():
     """ 根据客户端类型获取默认的用户角色 """
-    with MySqlZ() as cursor:
-        cursor.execute("SELECT `id`,`is_manager` FROM basic_client WHERE machine_uuid=%s;", client_token)
-        client = cursor.fetchone()
-    if client["is_manager"]:
-        return "research"
-    else:
-        return "normal"
+    # with MySqlZ() as cursor:
+    #     cursor.execute("SELECT `id`,`is_manager` FROM basic_client WHERE machine_uuid=%s;", client_token)
+    #     client = cursor.fetchone()
+    # if client["is_manager"]:
+    #     return "research"
+    # else:
+    #     return "normal"
+    # 2020.11.23修改： 由于客户端唯一识别号重复的问题，这个改为默认"normal"
+    return "normal"
 
 
 @passport_router.post("/register/", summary="用户注册")
@@ -59,11 +58,11 @@ async def register(
         username: str = Form(""),
         email: str = Form(""),
         password: str = Form(...),
-        client_uuid: str = Form(...)
+        client_uuid: str = Form(...),
+        is_manager: int = Form(0)
 ):
     if not is_image_code_passed:
         return {"message": "验证码有误!", "user": {}}
-    time.sleep(3)
     # 解码phone和password
     phone = base64.b64decode(phone.encode('utf-8')).decode('utf-8')
     password = base64.b64decode(password.encode('utf-8')).decode('utf-8')
@@ -78,7 +77,7 @@ async def register(
         username=username,
         phone=phone,
         email=email,
-        role=role,
+        role="research" if is_manager else "normal",
         password_hashed=verify.get_password_hash(password)  # hash用户密码
     )
     try:
@@ -90,31 +89,31 @@ async def register(
             )
             # 创建用户可登录的客户端
             new_user_id = cursor._instance.insert_id()
+            machine_uuid = encryption_uuid(client_uuid, new_user_id)
+            # 新增客户端
             cursor.execute(
-                "SELECT `id`,client_name FROM `basic_client` WHERE machine_uuid=%s;", client_uuid
+                "INSERT IGNORE INTO basic_client (client_name,machine_uuid,is_manager) "
+                "VALUES (%s,%s,%s);",
+                (username, machine_uuid, is_manager)
             )
-            client_info = cursor.fetchone()
-            if not client_info:
-                raise ClientNotFound("Client Not Found")
+            # 添加客户端用户可登录的客户端表
+            new_client_id = cursor._instance.insert_id()
             cursor.execute(
                 "INSERT INTO `user_user_client` (user_id,client_id,expire_date) "
                 "VALUES (%s,%s,%s);",
-                (new_user_id, client_info["id"], "3000-01-01")
+                (new_user_id, new_client_id, "3000-01-01")
             )
-
     except IntegrityError as e:
         logger.error("用户注册失败:{}".format(e))
         return {"message": "手机号已存在!", "user": {}}
-    except ClientNotFound:
-        return {"message": "无效客户端,无法注册!", "user": {}}
     back_user = User(
         user_code=user_to_save.user_code,
         username=user_to_save.username,
         phone=user_to_save.phone,
         email=user_to_save.email,
-        role=user_to_save.role
+        role=user_to_save.role,
     )
-    return {"message": "注册成功!", "user": back_user}
+    return {"message": "注册成功!", "user": back_user, "machine_uuid": machine_uuid}
 
 
 async def get_user_in_db(
@@ -144,19 +143,20 @@ async def get_user_in_db(
             return None
         # 如果密码验证通过,
         today_str = datetime.today().strftime("%Y-%m-%d")
-        # 非超管和运营查询当前用户是否能在这个客户端登录
+        # 非超管和非运营查询当前用户是否能在这个客户端登录
+        machine_uuid = encryption_uuid(client_uuid, user_dict["id"])  # 得到客户端uuid
         if user_dict["role"] not in ["superuser", "operator"]:
             cursor.execute(
                 "SELECT userclient.id, userclient.user_id FROM user_user_client AS userclient "
                 "INNER JOIN basic_client AS clienttb "
                 "ON userclient.client_id=clienttb.id AND userclient.user_id=%s AND clienttb.machine_uuid=%s "
                 "AND userclient.expire_date>%s AND clienttb.is_active=1;",
-                (user_dict["id"], client_uuid, today_str)
+                (user_dict["id"], machine_uuid, today_str)
             )
             is_client_accessed = cursor.fetchone()
             if not is_client_accessed:
                 raise HTTPException(status_code=403, detail="Can not login with the client.")
-
+        user_dict["machine_uuid"] = machine_uuid
     return User(**user_dict)
 
 
@@ -172,7 +172,13 @@ async def login_for_access_token(
     # 得到通过密码验证的用户,签发token证书
     access_token = verify.create_access_token(data={"user_id": user.id, "user_code": user.user_code})
     show_username = user.username if user.username else user.phone
-    return {"message": "登录成功!", "show_username": show_username, "access_token": access_token, "token_type": "bearer"}
+    return {
+        "message": "登录成功!",
+        "show_username": show_username,
+        "access_token": access_token,
+        "token_type": "bearer",
+        "machine_uuid": user.machine_uuid
+    }
 
 
 @passport_router.get("/image_code/", summary="图片验证码")
@@ -359,12 +365,51 @@ async def modify_client_authority(
                 jsonable_encoder(modify_item)
             )
         else:
-            cursor.execute(
-                "INSERT INTO user_user_client (user_id, client_id, expire_date) "
-                "VALUES (%(modify_user)s,%(client_id)s,%(expire_date)s);",
-                jsonable_encoder(modify_item)
-            )
+            # 查询client_uuid 如果后缀是0000则需要新增client表和可登录关联表的信息
+            cursor.execute("SELECT id,machine_uuid,is_manager "
+                           "FROM basic_client "
+                           "WHERE id=%s;",
+                           (modify_item.client_id, )
+                           )
+            client_obj = cursor.fetchone()
+            raw_uuid_list = client_obj["machine_uuid"].rsplit("-", 1)
+            if raw_uuid_list[1] == "0000":
+                # 新增客户端信息
+                # 生成用户使用的machine_id:
+                machine_uuid = "{}-{}".format(raw_uuid_list[0], "%04d" % modify_item.modify_user)
+                # 查询是否存在
+                cursor.execute("SELECT id FROM basic_client WHERE machine_uuid=%s;", (machine_uuid,))
+                real_user_client = cursor.fetchone()
+                if real_user_client:  # 存在
+                    real_client_id = real_user_client["id"]
+                    # 更新可登录
+                    cursor.execute(
+                        "UPDATE user_user_client SET expire_date=%s "
+                        "WHERE user_id=%s AND client_id=%s;",
+                        (modify_item.expire_date, modify_item.modify_user, real_client_id)
+                    )
+                else:
+                    # 增加可登录的客户端
+                    cursor.execute(
+                        "INSERT IGNORE INTO basic_client (machine_uuid,is_manager) "
+                        "VALUES (%s,%s);",
+                        (machine_uuid, client_obj["is_manager"])
+                    )
+                    real_client_id = cursor._instance.insert_id()
+                    # 增加可登录信息库
+                    cursor.execute(
+                        "INSERT INTO user_user_client (user_id, client_id, expire_date) "
+                        "VALUES (%s,%s,%s);",
+                        (modify_item.modify_user, real_client_id, modify_item.expire_date)
+                    )
 
+            else:  # 不是为0000的客户端
+                # 增加可登录信息
+                cursor.execute(
+                    "INSERT INTO user_user_client (user_id, client_id, expire_date) "
+                    "VALUES (%s,%s,%s);",
+                    (modify_item.modify_user, client_obj["id"], modify_item.expire_date)
+                )
     return {"message": "修改用户客户端登录权限成功!"}
 
 
@@ -445,7 +490,7 @@ async def modify_client_authority(
 
 @passport_router.get("/user/token-login/", summary="使用TOKEN进行自动登录")
 async def user_token_logged(
-        client: str = Query(..., min_length = 36, max_length = 36),
+        client: str = Query(..., min_length=36, max_length=36),
         token: str = Depends(verify.oauth2_scheme)
 ):
     user_id, user_code = verify.decipher_user_token(token)
@@ -457,11 +502,6 @@ async def user_token_logged(
         user_info = cursor.fetchone()
         if not user_info:
             raise HTTPException(status_code=401, detail="登录失败!USER NOT FOUND!")
-
-        cursor.execute("SELECT `id`,is_manager FROM basic_client WHERE machine_uuid=%s;", (client, ))
-        client_info = cursor.fetchone()
-        if not client_info:
-            raise HTTPException(status_code=401, detail="登录失败!INVALID CLIENT!")
 
         today_str = datetime.today().strftime("%Y-%m-%d")
         # 1 创建今日在线的数据库
@@ -476,13 +516,18 @@ async def user_token_logged(
                 (user_info["id"], today_str, 0)
             )
         # 2 非超管和运营查询当前用户是否能在这个客户端登录
+        machine_uuid = encryption_uuid(client, user_id)
         if user_info["role"] not in ["superuser", "operator"]:
+            cursor.execute("SELECT `id`,is_manager FROM basic_client WHERE machine_uuid=%s;", (machine_uuid,))
+            client_info = cursor.fetchone()
+            if not client_info:
+                raise HTTPException(status_code=401, detail="登录失败!INVALID CLIENT!")
             cursor.execute(
                 "SELECT userclient.id, userclient.user_id FROM user_user_client AS userclient "
                 "INNER JOIN basic_client AS clienttb "
                 "ON userclient.client_id=clienttb.id AND userclient.user_id=%s AND clienttb.machine_uuid=%s "
                 "AND userclient.expire_date>%s;",
-                (user_info["id"], client, today_str)
+                (user_info["id"], machine_uuid, today_str)
             )
             is_client_accessed = cursor.fetchone()
             if not is_client_accessed:
@@ -490,6 +535,7 @@ async def user_token_logged(
     return {
         "message": "token登录成功!",
         "show_username": user_info["username"],
+        "machine_uuid": machine_uuid
     }
 
 
@@ -546,7 +592,6 @@ async def reset_password(user_token: str = Depends(verify.oauth2_scheme), modify
 
 # 发送邮件的后台任务
 def send_email_verify_code(user_phone, user_email):
-    print("发送邮箱验证码")
     receivers = [user_email]  # 接收邮件，可设置为你的QQ邮箱或者其他邮箱
     # 生成验证码
     email_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
@@ -572,7 +617,7 @@ def send_email_verify_code(user_phone, user_email):
 
 
 @passport_router.get("/email-code/", summary="用户发送邮箱验证码")
-async def post_email_code(background_tasks: BackgroundTasks, phone: str = Query(..., regex=r'[13456789]{3}[0-9]{8}')):
+async def post_email_code(background_tasks: BackgroundTasks, phone: str = Query(..., regex=r'[1][3-9][0-9]{9}')):
     with MySqlZ() as cursor:
         cursor.execute("SELECT user_code,phone,email FROM user_user WHERE phone=%s;", (phone, ))
         user_obj = cursor.fetchone()

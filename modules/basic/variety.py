@@ -97,6 +97,31 @@ async def basic_variety(group: VarietyGroup = Query(...), is_real: int = Query(2
     return {"message": "查询品种信息成功!", "varieties": varieties}
 
 
+@variety_router.get("/exchange-variety/", summary="获取交易所下的品种")
+async def basic_variety(exchange: ExchangeLib = Query(...), is_real: int = Query(2, ge=0, le=2)):
+    with MySqlZ() as cursor:
+        cursor.execute(
+            "SELECT `id`,`create_time`,`variety_name`,`variety_en`,`group_name`, `exchange_lib` "
+            "FROM `basic_variety` "
+            "WHERE `exchange_lib`=%s "
+            "ORDER BY `sorted` DESC;",
+            (exchange.name,)
+        )
+        varieties = cursor.fetchall()
+    if is_real == 1:
+        varieties = list(filter(filter_exchange_others, varieties))
+    elif is_real == 2:
+        varieties = list(filter(filter_cffex_real, varieties))
+    else:
+        pass
+    for variety_item in varieties:
+        variety_item['exchange_lib'] = ExchangeLibCN[variety_item['exchange_lib']]
+        variety_item['group_name'] = VarietyGroupCN[variety_item['group_name']]
+
+    return {"message": "查询品种信息成功!", "varieties": varieties}
+
+
+
 @variety_router.get("/exchange/variety-all/", summary="所有品种以交易所分组")
 async def exchange_variety_all(is_real: int = Query(2, le=2, ge=0)):
     with MySqlZ() as cursor:
