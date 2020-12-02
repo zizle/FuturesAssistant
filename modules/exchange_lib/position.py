@@ -135,12 +135,12 @@ async def all_variety_net_position(interval_days: int = Query(1)):
 # 查询当前日期的前一天数据(这里要求原数据库必须至少有一条数据,且日期间隔不能超过mysql最大连接数)
 def query_preday(query_date):
     query_date = (query_date + timedelta(days=-1)).strftime("%Y%m%d")
-    with MySqlZ() as m_cursor:
-        m_cursor.execute(
+    with ExchangeLibDB() as ex_cursor:
+        ex_cursor.execute(
             "SELECT variety_en,long_position,short_position,net_position "
-            "FROM exchange_rank_holding WHERE `date`=%s;", (query_date, )
+            "FROM zero_rank_position WHERE `date`=%s;", (query_date, )
         )
-        date_data = m_cursor.fetchall()
+        date_data = ex_cursor.fetchall()
         if not date_data:
             return query_preday(datetime.strptime(query_date, "%Y%m%d"))
         return date_data
@@ -213,28 +213,27 @@ async def generate_rank_position(option_day: str = Body(..., embed=True), user_t
         )
         shfe_positions = cursor.fetchall()
 
-    # 合并以上查询的结果
-    save_items = list(cffex_positions) + list(czce_positions) + list(dce_positions) + list(shfe_positions)
-    # 转换数据类型
-    for item in save_items:
-        item["long_position"] = int(item["long_position"])
-        item["short_position"] = int(item["short_position"])
-        item["net_position"] = item["long_position"] - item["short_position"]
-        pre_day = pre_dict.get(item["variety_en"])
-        if pre_day:
-            item["long_position_increase"] = item["long_position"] - pre_day["long_position"]
-            item["short_position_increase"] = item["short_position"] - pre_day["short_position"]
-            item["net_position_increase"] = item["net_position"] - pre_day["net_position"]
-        else:
-            item["long_position_increase"] = item["long_position"]
-            item["short_position_increase"] = item["short_position"]
-            item["net_position_increase"] = item["net_position"]
-    # 将items保存入库
-    if not save_items:
-        return {"message": "没有查询到今日的持仓数据,无生成结果"}
-    with MySqlZ() as m_cursor:
-        count = m_cursor.executemany(
-            "INSERT IGNORE INTO exchange_rank_holding (`date`,variety_en,"
+        # 合并以上查询的结果
+        save_items = list(cffex_positions) + list(czce_positions) + list(dce_positions) + list(shfe_positions)
+        # 转换数据类型
+        for item in save_items:
+            item["long_position"] = int(item["long_position"])
+            item["short_position"] = int(item["short_position"])
+            item["net_position"] = item["long_position"] - item["short_position"]
+            pre_day = pre_dict.get(item["variety_en"])
+            if pre_day:
+                item["long_position_increase"] = item["long_position"] - pre_day["long_position"]
+                item["short_position_increase"] = item["short_position"] - pre_day["short_position"]
+                item["net_position_increase"] = item["net_position"] - pre_day["net_position"]
+            else:
+                item["long_position_increase"] = item["long_position"]
+                item["short_position_increase"] = item["short_position"]
+                item["net_position_increase"] = item["net_position"]
+        # 将items保存入库
+        if not save_items:
+            return {"message": "没有查询到今日的持仓数据,无生成结果"}
+        count = cursor.executemany(
+            "INSERT IGNORE INTO zero_rank_position (`date`,variety_en,"
             "long_position,long_position_increase,short_position,short_position_increase,"
             "net_position,net_position_increase) "
             "VALUES (%(date)s,%(variety_en)s,"
@@ -252,13 +251,13 @@ def get_rank_position(interval_days: int = Query(1)):
     pre_date = current_date + timedelta(days=-45)
     start_date = pre_date.strftime('%Y%m%d')
     end_date = current_date.strftime('%Y%m%d')
-    with MySqlZ() as cursor:
-        cursor.execute(
-            "SELECT `date`,variety_en,net_position FROM exchange_rank_holding "
+    with ExchangeLibDB() as ex_cursor:
+        ex_cursor.execute(
+            "SELECT `date`,variety_en,net_position FROM zero_rank_position "
             "WHERE `date`>=%s AND `date`<=%s;",
             (start_date, end_date)
         )
-        all_data = cursor.fetchall()
+        all_data = ex_cursor.fetchall()
     if not all_data:
         return {"message": "查询全品种净持仓数据成功!", "data": [], 'header_keys': {}}
     # 整成pandas

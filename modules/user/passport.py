@@ -53,7 +53,6 @@ async def get_default_role():
 @passport_router.post("/register/", summary="用户注册")
 async def register(
         is_image_code_passed: bool = Depends(checked_image_code),
-        role: str = Depends(get_default_role),
         phone: str = Form(...),
         username: str = Form(""),
         email: str = Form(""),
@@ -105,15 +104,16 @@ async def register(
             )
     except IntegrityError as e:
         logger.error("用户注册失败:{}".format(e))
-        return {"message": "手机号已存在!", "user": {}}
+        return {"message": "手机号已存在!", "user": {}, "machine_uuid": ''}
     back_user = User(
         user_code=user_to_save.user_code,
         username=user_to_save.username,
         phone=user_to_save.phone,
         email=user_to_save.email,
         role=user_to_save.role,
+        machine_uuid=machine_uuid
     )
-    return {"message": "注册成功!", "user": back_user, "machine_uuid": machine_uuid}
+    return {"message": "注册成功!可以登录了.", "user": back_user, "machine_uuid": machine_uuid}
 
 
 async def get_user_in_db(

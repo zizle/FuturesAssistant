@@ -55,6 +55,7 @@ class ModifyChartOptionItem(BaseModel):
     right_name: str
     right_min: str
     right_max: str
+    date_length: int
     start_year: str
     end_year: str
     decipherment: str

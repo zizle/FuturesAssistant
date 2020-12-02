@@ -32,7 +32,7 @@ class User(BaseModel):
     email: str
     role: str
     is_active: Optional[bool] = True
-    machine_uuid: str
+    machine_uuid: str  # 用户get_user_in_db函数中返回的数据(注册中已单独字段返回)
 
 
 class UserInDB(BaseModel):

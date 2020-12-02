@@ -142,9 +142,9 @@ async def generate_price_position(option_day: str = Body(..., embed=True), user_
     # 将items保存入库
     if not save_items:
         return {"message": "没有查询到今日的持仓数据,无生成结果"}
-    with MySqlZ() as m_cursor:
-        count = m_cursor.executemany(
-            "INSERT INTO contribute_price_position"
+    with ExchangeLibDB() as ex_cursor:
+        count = ex_cursor.executemany(
+            "INSERT INTO zero_price_position"
             "(`date`,variety_en,contract,close_price,settlement,empty_volume,long_position,short_position) "
             "VALUES (%(date)s,%(variety_en)s,%(contract)s,%(close_price)s,%(settlement)s,%(empty_volume)s,"
             "%(long_position)s,%(short_position)s);",
@@ -155,29 +155,29 @@ async def generate_price_position(option_day: str = Body(..., embed=True), user_
 
 @price_position_router.get('/price-position-contracts/', summary='获取品种价格持仓的所有合约')
 async def price_position_contract(variety_en: str = Query(..., min_length=1, max_length=2)):
-    with MySqlZ() as m_cursor:
-        m_cursor.execute(
+    with ExchangeLibDB() as ex_cursor:
+        ex_cursor.execute(
             "SELECT id,contract "
-            "FROM contribute_price_position "
+            "FROM zero_price_position "
             "WHERE variety_en=%s "
             "GROUP BY contract "
             "ORDER BY contract DESC;",
             variety_en
         )
-        all_contract = m_cursor.fetchall()
+        all_contract = ex_cursor.fetchall()
     return {'message': '查询成功!', 'contracts': all_contract}
 
 
 @price_position_router.get('/price-position-dates/', summary='获取合约的时间跨度')
 async def price_position_contract_dates(contract: str = Query(...)):
-    with MySqlZ() as m_cursor:
-        m_cursor.execute(
+    with ExchangeLibDB() as ex_cursor:
+        ex_cursor.execute(
             "SELECT id, MIN(`date`) AS min_date, MAX(`date`) AS max_date "
-            "FROM contribute_price_position "
+            "FROM zero_price_position "
             "WHERE contract=%s;",
             contract
         )
-        result = m_cursor.fetchone()
+        result = ex_cursor.fetchone()
     return {'message': '获取成功!', 'dates': result}
 
 
@@ -188,14 +188,14 @@ async def price_position(
         max_date: int = Query(...)
 ):
     # 查询数据
-    with MySqlZ() as m_cursor:
-        m_cursor.execute(
+    with ExchangeLibDB() as ex_cursor:
+        ex_cursor.execute(
             "SELECT id,`date`,variety_en,contract,close_price,empty_volume,long_position,short_position "
-            "FROM contribute_price_position "
+            "FROM zero_price_position "
             "WHERE `date`>=%s AND `date`<=%s AND contract=%s;",
             (min_date, max_date, contract)
         )
-        analysis_data = m_cursor.fetchall()
+        analysis_data = ex_cursor.fetchall()
 
     # 转为DataFrame
     analysis_df = pd.DataFrame(
