@@ -304,6 +304,23 @@ async def variety_chart(
         return {"message": "获取图形信息成功!", "data": charts}
 
 
+# 本API必须置于.put('/chart/{chart_id}/')之前,否则`suffix-swap`先被匹配为错误的chart_id而无法执行
+@chart_router.put("/chart/suffix-swap/", summary="交换图形排序后缀")
+async def swap_chart_suffix(
+        swap_item: SwapSuffixItem = Body(...)
+):
+    with MySqlZ() as cursor:
+        # 交换
+        cursor.execute(
+            "UPDATE industry_user_chart AS sheet1 "
+            "JOIN industry_user_chart AS sheet2 "
+            "ON sheet1.id=%s AND sheet2.id=%s "
+            "SET sheet1.suffix=sheet2.suffix,sheet2.suffix=sheet1.suffix;",
+            (swap_item.swap_id, swap_item.to_swap)
+        )
+    return {"message": "交换排序成功!", "swap_row": swap_item.swap_row}
+
+
 @chart_router.get("/chart/{chart_id}/", summary="获取图形的基本信息")
 async def chart_base_info(chart_id: int):
     with MySqlZ() as cursor:
@@ -320,6 +337,7 @@ async def chart_base_info(chart_id: int):
 
         # 左轴配置
         y_axises = chart_options["y_axis"]
+        x_axises = chart_options["x_axis"]
         left_axis = y_axises[0]
         # 左轴
         chart["left_axis"] = {
@@ -332,6 +350,7 @@ async def chart_base_info(chart_id: int):
                 "name": right_axis.get("name", ""), "min": right_axis.get("min", ''), "max": right_axis.get("max", '')
             }
         # 起始时间
+        chart["date_length"] = x_axises["date_length"]
         chart["start_year"] = chart_options["start_year"]
         chart["end_year"] = chart_options["end_year"]
 
@@ -350,6 +369,7 @@ async def modify_chart_option(chart_id: int, option_item: ModifyChartOptionItem 
             option_json = json.load(fp)
         # 修改文件option
         y_axises = option_json['y_axis']
+        x_axises = option_json['x_axis']
         # 左轴数据
         left_y = y_axises[0]
         left_y['name'] = option_item.left_name
@@ -364,6 +384,7 @@ async def modify_chart_option(chart_id: int, option_item: ModifyChartOptionItem 
                 right_y['min'] = int(option_item.right_min)
             if option_item.right_max:
                 right_y['max'] = int(option_item.right_max)
+        x_axises['date_length'] = option_item.date_length
         option_json['start_year'] = option_item.start_year if option_item.start_year else '0'
         option_json['end_year'] = option_item.end_year if option_item.end_year else '0'
         # 写入数据库(修改解说)
@@ -376,7 +397,7 @@ async def modify_chart_option(chart_id: int, option_item: ModifyChartOptionItem 
     return {"message": "修改成功!"}
 
 
-# 功能整合进.put("/chart/{chart_id}/")本API为旧版本留存
+# 功能在.put("/chart/{chart_id}/")也有,本API同时保留
 @chart_router.put("/chart-decipherment/{chart_id}/", summary="修改图形的解读信息")
 async def chart_decipherment(
         chart_id: int,
@@ -387,22 +408,6 @@ async def chart_decipherment(
             "UPDATE industry_user_chart SET decipherment=%s WHERE id=%s;", (decipherment, chart_id)
         )
     return {"message": "修改成功!"}
-
-
-@chart_router.put("/chart/suffix-swap/", summary="交换图形排序后缀")
-async def swap_chart_suffix(
-        swap_item: SwapSuffixItem = Body(...)
-):
-    with MySqlZ() as cursor:
-        # 交换
-        cursor.execute(
-            "UPDATE industry_user_chart AS sheet1 "
-            "JOIN industry_user_chart AS sheet2 "
-            "ON sheet1.id=%s AND sheet2.id=%s "
-            "SET sheet1.suffix=sheet2.suffix,sheet2.suffix=sheet1.suffix;",
-            (swap_item.swap_id, swap_item.to_swap)
-        )
-    return {"message": "交换排序成功!", "swap_row": swap_item.swap_row}
 
 
 @chart_router.put("/chart/{chart_id}/display/", summary="修改图形在主页或品种页显示或仅自己可见")

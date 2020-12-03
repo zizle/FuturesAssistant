@@ -21,6 +21,7 @@ JWT_EXPIRE_SECONDS = 6000
 SYSTEM_EMAIL = "rdyj_fxjc@163.com"
 SYSTEM_EMAIL_AUTH = "LCAWXVQEVNEBBIRF"
 
+
 # 日志记录
 def logger_handler(app_dir, log_level):
     # 日志配置
@@ -40,6 +41,7 @@ def logger_handler(app_dir, log_level):
 
 
 logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 logger.addHandler(logger_handler(app_dir=APP_DIR, log_level=logging.INFO))
 
 # 数据库配置

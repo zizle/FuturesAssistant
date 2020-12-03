@@ -81,7 +81,7 @@ async def generate_price_index(option_day: str = Body(..., embed=True), user_tok
     # 加和
     all_daily = list(cffex_daily) + list(czce_daily) + list(dce_daily) + list(shfe_daily)
     if not all_daily:
-        return {}
+        return {"message": "没有查询到今日的数据,无生成结果"}
     # 转为数据框
     daily_df = pd.DataFrame(all_daily,
                             columns=['date', 'variety_en', 'contract', 'close_price', 'empty_volume', 'trade_volume'])
@@ -125,9 +125,9 @@ async def generate_price_index(option_day: str = Body(..., embed=True), user_tok
     # 保存入库
     if not save_items:
         return {"message": "没有查询到今日的数据,无生成结果"}
-    with MySqlZ() as m_cursor:
-        count = m_cursor.executemany(
-            "INSERT INTO contribute_price_index"
+    with ExchangeLibDB() as ex_cursor:
+        count = ex_cursor.executemany(
+            "INSERT INTO zero_price_index"
             "(`date`,variety_en,total_position,total_trade,dominant_price,weight_price) "
             "VALUES (%(date)s,%(variety_en)s,%(total_position)s,%(total_trade)s,%(dominant_price)s,%(weight_price)s);",
             save_items
@@ -137,14 +137,14 @@ async def generate_price_index(option_day: str = Body(..., embed=True), user_tok
 
 @price_index_router.get('/price-index-dates/', summary='品种下的时间跨度')
 async def variety_price_index_dates(variety_en: str = Query(...)):
-    with MySqlZ() as m_cursor:
-        m_cursor.execute(
+    with ExchangeLibDB() as ex_cursor:
+        ex_cursor.execute(
             "SELECT id, MIN(`date`) AS min_date, MAX(`date`) AS max_date "
-            "FROM contribute_price_index "
+            "FROM zero_price_index "
             "WHERE variety_en=%s;",
             variety_en
         )
-        result = m_cursor.fetchone()
+        result = ex_cursor.fetchone()
     return {'message': '获取成功!', 'dates': result}
 
 
@@ -155,14 +155,14 @@ async def price_index(
         max_date: int = Query(...)
 ):
     # 查询数据
-    with MySqlZ() as m_cursor:
-        m_cursor.execute(
+    with ExchangeLibDB() as ex_cursor:
+        ex_cursor.execute(
             "SELECT id,`date`,variety_en,total_position,total_trade,dominant_price,weight_price "
-            "FROM contribute_price_index "
+            "FROM zero_price_index "
             "WHERE `date`>=%s AND `date`<=%s AND variety_en=%s;",
             (min_date, max_date, variety_en)
         )
-        analysis_data = m_cursor.fetchall()
+        analysis_data = ex_cursor.fetchall()
     # 转为DataFrame
     analysis_df = pd.DataFrame(
         analysis_data,

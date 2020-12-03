@@ -12,6 +12,7 @@ API-5: 指定数据表的具体表内数据
 API-6: 交换指定两个表的显示排序
 API-7: 用户删除自己创建的数据表
 API-8: 用户修改自己的数据表是否公开
+API-9: 用户指定修改某个数据表下的某条数据记录
 """
 import re
 import os
@@ -22,7 +23,7 @@ from hashlib import md5
 from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from utils.verify import oauth2_scheme, decipher_user_token
 from db.mysql_z import MySqlZ, VarietySheetDB
-from configs import FILE_STORAGE
+from configs import FILE_STORAGE, logger
 from .models import SheetData, SwapSuffixItem
 
 sheet_router = APIRouter()
@@ -116,10 +117,14 @@ def save_new_sheet(
         headers_values[col_item] = sheet_headers[index]
 
     table_name = "{}_SHEET_{}".format(variety_en, sheet_suffix_index)
+    drop_table_statement = "DROP TABLE IF EXISTS %s;" % table_name
     create_statement = "CREATE TABLE %s (%s) DEFAULT CHARSET='utf8';" % (table_name, field_name)
     insert_statement = "INSERT INTO %s (%s) VALUES (%s);" % (table_name, col_name, val_name)
     new_values = source_df.to_dict(orient="records")
+    # 日志记录用户创建表
+    logger.info('用户新建表:\n{}'.format(create_statement))
     with VarietySheetDB() as cursor:
+        cursor.execute(drop_table_statement)  # 如果之前有创建成功的表但记录出错则可删除
         cursor.execute(create_statement)  # 创建数据表
         cursor.execute(insert_statement, headers_values)  # 新增表头的数据
         update_count = cursor.executemany(insert_statement, new_values)
@@ -419,6 +424,8 @@ async def modify_sheet_public(
         is_private: int = Body(..., ge=0, le=1, embed=True)
 ):
     user_id, _ = decipher_user_token(user_token)
+    if not user_id:
+        return {"message": "登录过期修改失败!"}
     with MySqlZ() as cursor:
         cursor.execute(
             "UPDATE industry_user_sheet SET is_private=%s "
@@ -426,3 +433,31 @@ async def modify_sheet_public(
         )
     return {"message": "修改成功!"}
 
+
+@sheet_router.put('/sheet/{sheet_id}/record/{record_id}/', summary='用户修改指定表下的指定记录')
+async def modify_sheet_one_record(
+        sheet_id: int, record_id: int,
+        user_token: str = Depends(oauth2_scheme),
+        record_item: dict = Body(...)
+):
+    user_id, _ = decipher_user_token(user_token)
+    if not user_id:
+        return {"message": "登录过期修改失败!"}
+    with MySqlZ() as m_cursor:
+        # 查询数据表名称
+        m_cursor.execute("SELECT id,db_table FROM industry_user_sheet WHERE id=%s;", sheet_id)
+        sheet_obj = m_cursor.fetchone()
+    if not sheet_obj:
+        return {"message": "数据表不存在,修改失败!"}
+    db_table = sheet_obj['db_table']
+    # 修改对应的数据
+    # 删除id列,对应生成update语句
+    del record_item['id']
+    u_sub_list = []
+    for key, value in record_item.items():
+        u_sub_list.append('{}="{}"'.format(key, value))
+    # 转为字符串
+    update_statement = "UPDATE %s SET %s WHERE id=%s;" % (db_table, ','.join(u_sub_list), record_id)
+    with VarietySheetDB() as vs_cursor:
+        vs_cursor.execute(update_statement)
+    return {"message": "修改数据成功!"}
