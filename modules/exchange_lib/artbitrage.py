@@ -7,6 +7,7 @@
 API-1: 查询两个品种指定日期的价格数据
 API-2: 查询期货现货的价格数据
 """
+import datetime
 import pandas as pd
 from fastapi import APIRouter, Body, HTTPException
 from pydantic import BaseModel
@@ -26,13 +27,9 @@ def df_zero_handler(num):
         return num
 
 
-def data_frame_handler(df1, df2, day_count):
+def data_frame_handler(df1, df2):
     """ 处理2个数据框的数据 """
     contract_df = pd.merge(df1, df2, on=["date"], how="outer")
-    # 截取数据行
-    row_count = contract_df.shape[0]
-    start_index = row_count - day_count if row_count > day_count else 0
-    contract_df = contract_df[start_index: row_count]
     # 填空值
     contract_df.fillna('-', inplace=True)
     # 处理0值
@@ -56,31 +53,36 @@ class ArbitrageItem(BaseModel):
 async def arbitrage_variety(query_item: ArbitrageItem = Body(...)):
     # 分别查询品种所在的交易所
     table1, table2 = None, None
-    variety1, variety2 = "", ""
+    # 根据当前日期计算出日期
+    today = datetime.datetime.today()
+    start_date = (today + datetime.timedelta(days=-query_item.day_count)).strftime('%Y%m%d')
+    end_date = today.strftime('%Y%m%d')
     with MySqlZ() as m_cursor:
         m_cursor.execute(
-            "SELECT id,variety_name,exchange_lib FROM basic_variety WHERE variety_en=%s;", (query_item.variety_1, )
+            "SELECT id,variety_name,exchange_lib FROM basic_variety WHERE variety_en=%s;",
+            (query_item.variety_1,)
         )
         variety_item_1 = m_cursor.fetchone()
         m_cursor.execute(
-            "SELECT id,variety_name,exchange_lib FROM basic_variety WHERE variety_en=%s;", (query_item.variety_2,)
+            "SELECT id,variety_name,exchange_lib FROM basic_variety WHERE variety_en=%s;",
+            (query_item.variety_2,)
         )
         variety_item_2 = m_cursor.fetchone()
         if variety_item_1:
             table1 = "{}_daily".format(variety_item_1["exchange_lib"])
-            variety1 = variety_item_1["variety_name"]
         if variety_item_2:
             table2 = "{}_daily".format(variety_item_2["exchange_lib"])
-            variety2 = variety_item_2["variety_name"]
     if not table1 or not table2:
         raise HTTPException(status_code=400, detail='variety error')
     # 查询品种的合约数据
-    query_sql1 = "SELECT `date`,close_price FROM {} WHERE contract=%s ORDER BY `date`;".format(table1)
-    query_sql2 = "SELECT `date`,close_price FROM {} WHERE contract=%s ORDER BY `date`;".format(table2)
+    query_sql1 = "SELECT `date`,close_price FROM {} WHERE contract=%s AND `date`>=%s AND `date`<=%s ORDER BY `date`;".format(
+        table1)
+    query_sql2 = "SELECT `date`,close_price FROM {} WHERE contract=%s AND `date`>=%s AND `date`<=%s ORDER BY `date`;".format(
+        table2)
     with ExchangeLibDB() as ex_cursor:
-        ex_cursor.execute(query_sql1, (query_item.contract_1, ))
+        ex_cursor.execute(query_sql1, (query_item.contract_1, start_date, end_date))
         contract_data1 = ex_cursor.fetchall()
-        ex_cursor.execute(query_sql2, (query_item.contract_2, ))
+        ex_cursor.execute(query_sql2, (query_item.contract_2, start_date, end_date))
         contract_data2 = ex_cursor.fetchall()
     # 处理数据
     df1 = pd.DataFrame(contract_data1)
@@ -88,10 +90,10 @@ async def arbitrage_variety(query_item: ArbitrageItem = Body(...)):
 
     df2 = pd.DataFrame(contract_data2)
     df2.columns = ["date", "closePrice2"]
-    data = data_frame_handler(df1, df2, query_item.day_count)
+    data = data_frame_handler(df1, df2)
     # 图形需要的基础参数
     base_option = {
-        "title": "{}-{}".format(variety1, variety2),
+        "title": "{}-{}".format(query_item.contract_1, query_item.contract_2),
     }
     return {"message": "数据获取成功!", "data": data, "base_option": base_option}
 
@@ -101,6 +103,10 @@ async def arbitrage_variety(query_item: ArbitrageItem = Body(...)):
     # 查询品种1所在的交易所
     table1 = None
     variety1 = ""
+    # 根据当前日期计算出日期
+    today = datetime.datetime.today()
+    start_date = (today + datetime.timedelta(days=-query_item.day_count)).strftime('%Y%m%d')
+    end_date = today.strftime('%Y%m%d')
     with MySqlZ() as m_cursor:
         m_cursor.execute(
             "SELECT id,variety_name,exchange_lib FROM basic_variety WHERE variety_en=%s;", (query_item.variety_1,)
@@ -113,14 +119,16 @@ async def arbitrage_variety(query_item: ArbitrageItem = Body(...)):
             raise HTTPException(status_code=400, detail='variety error')
         # 查询现货价格
         m_cursor.execute(
-            "SELECT `date`,spot_price FROM industry_spot_price WHERE variety_en=%s ORDER BY `date`;",
-            (query_item.variety_2, )
+            "SELECT `date`,spot_price FROM industry_spot_price "
+            "WHERE variety_en=%s AND `date`>=%s AND `date`<=%s ORDER BY `date`;",
+            (query_item.variety_2, start_date, end_date)
         )
         spot_prices = m_cursor.fetchall()
     # 查询品种1的合约数据
-    query_sql1 = "SELECT `date`,close_price FROM {} WHERE contract=%s ORDER BY `date`;".format(table1)
+    query_sql1 = "SELECT `date`,close_price FROM {} WHERE contract=%s AND `date`>=%s AND `date`<=%s ORDER BY `date`;".format(
+        table1)
     with ExchangeLibDB() as ex_cursor:
-        ex_cursor.execute(query_sql1, (query_item.contract_1,))
+        ex_cursor.execute(query_sql1, (query_item.contract_1, start_date, end_date))
         contract_data1 = ex_cursor.fetchall()
 
     # 处理数据
@@ -129,7 +137,7 @@ async def arbitrage_variety(query_item: ArbitrageItem = Body(...)):
 
     df2 = pd.DataFrame(spot_prices)
     df2.columns = ["date", "closePrice2"]
-    data = data_frame_handler(df1, df2, query_item.day_count)
+    data = data_frame_handler(df1, df2)
     # 图形需要的基础参数
     base_option = {
         "title": "{}-{}".format(variety1, SPOT_VARIETY_ZH.get(query_item.variety_2, query_item.variety_2)),
