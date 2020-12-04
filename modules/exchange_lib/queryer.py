@@ -6,6 +6,7 @@ import pandas as pd
 from collections import OrderedDict
 from datetime import datetime
 from fastapi import APIRouter, Depends, Query, HTTPException
+from utils.constant import VARIETY_ZH
 
 from db.mysql_z import ExchangeLibDB
 
@@ -27,14 +28,25 @@ async def query_czce_daily(query_date: str = Depends(verify_date)):
     with ExchangeLibDB() as cursor:
         cursor.execute(query_sql)
         result = cursor.fetchall()
+
+    # pandas处理数据
+    table_df = pd.DataFrame(result, columns=['date', 'variety_en', 'contract', 'pre_settlement', 'open_price', 'highest', 'lowest',
+                                             'close_price', 'settlement', 'zd_1', 'zd_2', 'trade_volume',
+                                             'increase_volume', 'trade_price', 'empty_volume', 'delivery_price'])
+    # 排序
+    table_df = table_df.sort_values(by=['variety_en', 'contract'])
+    # 添加中文列
+    table_df['variety_zh'] = table_df['variety_en'].apply(lambda x: VARIETY_ZH.get(x, x))
+    # 转为字典
+    table_values = table_df.to_dict(orient='records')
     keys = OrderedDict({
-        "id": "ID", "date": "日期", "variety_en": "品种", "contract": "合约", "pre_settlement": "前结算", "open_price": "开盘价", "highest": "最高价",
+        "date": "日期", "variety_en": "品种", "contract": "合约", "pre_settlement": "前结算", "open_price": "开盘价", "highest": "最高价",
         "lowest": "最低价", "close_price": "收盘价", "settlement": "结算价","zd_1": "涨跌1", "zd_2": "涨跌2", "trade_volume": "成交量", "empty_volume": "空盘量",
         "increase_volume": "增减量", "trade_price": "成交额", "delivery_price": "交割结算价"
     })
     return {
         "message": "郑州商品交易所{}日交易行情数据查询成功!".format(query_date),
-        "result": result,
+        "result": table_values,
         "content_keys": keys
     }
 
@@ -64,15 +76,26 @@ async def query_czce_rank(query_date: str = Depends(verify_date)):
     with ExchangeLibDB() as cursor:
         cursor.execute(query_sql)
         result = cursor.fetchall()
+    # pandas数据处理
+    table_df = pd.DataFrame(result, columns=['date', 'variety_en', 'contract', 'rank',
+                                             'trade_company', 'trade', 'trade_increase',
+                                             'long_position_company', 'long_position', 'long_position_increase',
+                                             'short_position_company', 'short_position', 'short_position_increase'])
+    # 排序
+    table_df = table_df.sort_values(by=['variety_en', 'contract', 'rank'])
+    # 添加中文列
+    table_df['variety_zh'] = table_df['variety_en'].apply(lambda x: VARIETY_ZH.get(x, x))
+    # 转为字典
+    table_values = table_df.to_dict(orient='records')
     keys = OrderedDict({
-        "id": "ID", "date": "日期", "variety_en": "品种", "contract": "合约", "rank": "排名",
+        "date": "日期", "variety_en": "品种", "contract": "合约", "rank": "排名",
         "trade_company": "公司简称", "trade": "成交量", "trade_increase": "成交量增减",
         "long_position_company": "公司简称", "long_position": "持买仓量", "long_position_increase": "持买仓量增减",
         "short_position_company": "公司简称", "short_position": "持卖仓量", "short_position_increase": "持卖仓量增减"
     })
     return {
         "message": "郑州商品交易所{}日持仓排名数据查询成功!".format(query_date),
-        "result": result,
+        "result": table_values,
         "content_keys": keys
     }
 
@@ -148,14 +171,24 @@ async def query_shfe_daily(query_date: str = Depends(verify_date)):
     with ExchangeLibDB() as cursor:
         cursor.execute(query_sql)
         result = cursor.fetchall()
+    # pandas处理数据
+    table_df = pd.DataFrame(result, columns=['date', 'variety_en', 'contract', 'pre_settlement', 'open_price', 'highest',
+                                             'lowest', 'close_price', 'settlement', 'zd_1', 'zd_2', 'trade_volume',
+                                             'empty_volume', 'increase_volume'])
+    # 排序
+    table_df = table_df.sort_values(by=['variety_en', 'contract'])
+    # 添加中文列
+    table_df['variety_zh'] = table_df['variety_en'].apply(lambda x: VARIETY_ZH.get(x, x))
+    # 转为字典
+    table_values = table_df.to_dict(orient='records')
     keys = OrderedDict({
-        "id": "ID", "date": "日期", "variety_en": "品种", "contract": "合约", "pre_settlement": "前结算", "open_price": "开盘价", "highest": "最高价",
+        "date": "日期", "variety_en": "品种", "contract": "合约", "pre_settlement": "前结算", "open_price": "开盘价", "highest": "最高价",
         "lowest": "最低价", "close_price": "收盘价", "settlement": "结算价", "zd_1": "涨跌1", "zd_2": "涨跌2", "trade_volume": "成交量", "empty_volume": "空盘量",
         "increase_volume": "增减量"
     })
     return {
         "message": "上海期货交易所{}日交易行情数据查询成功!".format(query_date),
-        "result": result,
+        "result": table_values,
         "content_keys": keys
     }
 
@@ -185,15 +218,26 @@ async def query_shfe_rank(query_date: str = Depends(verify_date)):
     with ExchangeLibDB() as cursor:
         cursor.execute(query_sql)
         result = cursor.fetchall()
+    # pandas数据处理
+    table_df = pd.DataFrame(result, columns=['date', 'variety_en', 'contract', 'rank',
+                                             'trade_company', 'trade', 'trade_increase',
+                                             'long_position_company', 'long_position', 'long_position_increase',
+                                             'short_position_company', 'short_position', 'short_position_increase'])
+    # 排序
+    table_df = table_df.sort_values(by=['variety_en', 'contract', 'rank'])
+    # 添加中文列
+    table_df['variety_zh'] = table_df['variety_en'].apply(lambda x: VARIETY_ZH.get(x, x))
+    # 转为字典
+    table_values = table_df.to_dict(orient='records')
     keys = OrderedDict({
-        "id": "ID", "date": "日期", "variety_en": "品种", "contract": "合约", "rank": "排名",
+        "date": "日期", "variety_en": "品种", "contract": "合约", "rank": "排名",
         "trade_company": "公司简称", "trade": "成交量", "trade_increase": "成交量增减",
         "long_position_company": "公司简称", "long_position": "持买仓量", "long_position_increase": "持买仓量增减",
         "short_position_company": "公司简称", "short_position": "持卖仓量", "short_position_increase": "持卖仓量增减"
     })
     return {
         "message": "上海期货交易所{}日持仓排名数据查询成功!".format(query_date),
-        "result": result,
+        "result": table_values,
         "content_keys": keys
     }
 
@@ -271,15 +315,25 @@ async def query_cffex_daily(query_date: str = Depends(verify_date)):
     with ExchangeLibDB() as cursor:
         cursor.execute(query_sql)
         result = cursor.fetchall()
+    # pandas处理数据
+    table_df = pd.DataFrame(result, columns=['date', 'variety_en', 'contract', 'open_price', 'highest', 'lowest',
+                                             'close_price', 'settlement', 'zd_1', 'zd_2', 'trade_volume', 'trade_price',
+                                             'empty_volume'])
+    # 排序
+    table_df = table_df.sort_values(by=['variety_en', 'contract'])
+    # 添加中文列
+    table_df['variety_zh'] = table_df['variety_en'].apply(lambda x: VARIETY_ZH.get(x, x))
+    # 转为字典
+    table_values = table_df.to_dict(orient='records')
     keys = OrderedDict({
-        "id": "ID", "date": "日期", "variety_en": "品种", "contract": "合约",
+        "date": "日期", "variety_en": "品种", "contract": "合约",
         "open_price": "开盘价", "highest": "最高价","lowest": "最低价", "close_price": "收盘价",
         "settlement": "结算价", "zd_1": "涨跌1", "zd_2": "涨跌2", "trade_volume": "成交量",
         "trade_price": "成交额", "empty_volume": "持仓量"
     })
     return {
         "message": "中国金融期货交易所{}日交易行情数据查询成功!".format(query_date),
-        "result": result,
+        "result": table_values,
         "content_keys": keys
     }
 
@@ -310,15 +364,26 @@ async def query_cffex_rank(query_date: str = Depends(verify_date)):
     with ExchangeLibDB() as cursor:
         cursor.execute(query_sql)
         result = cursor.fetchall()
+    # pandas数据处理
+    table_df = pd.DataFrame(result, columns=['date', 'variety_en', 'contract', 'rank',
+                                             'trade_company', 'trade', 'trade_increase',
+                                             'long_position_company', 'long_position', 'long_position_increase',
+                                             'short_position_company', 'short_position', 'short_position_increase'])
+    # 排序
+    table_df = table_df.sort_values(by=['variety_en', 'contract', 'rank'])
+    # 添加中文列
+    table_df['variety_zh'] = table_df['variety_en'].apply(lambda x: VARIETY_ZH.get(x, x))
+    # 转为字典
+    table_values = table_df.to_dict(orient='records')
     keys = OrderedDict({
-        "id": "ID", "date": "日期", "variety_en": "品种", "contract": "合约", "rank": "排名",
+        "date": "日期", "variety_en": "品种", "contract": "合约", "rank": "排名",
         "trade_company": "公司简称", "trade": "成交量", "trade_increase": "成交量增减",
         "long_position_company": "公司简称", "long_position": "持买仓量", "long_position_increase": "持买仓量增减",
         "short_position_company": "公司简称", "short_position": "持卖仓量", "short_position_increase": "持卖仓量增减"
     })
     return {
         "message": "中国金融期货交易所{}日持仓排名数据查询成功!".format(query_date),
-        "result": result,
+        "result": table_values,
         "content_keys": keys
     }
 
@@ -360,15 +425,25 @@ async def query_dce_daily(query_date: str = Depends(verify_date)):
     with ExchangeLibDB() as cursor:
         cursor.execute(query_sql)
         result = cursor.fetchall()
+    # pandas处理数据
+    table_df = pd.DataFrame(result, columns=['date', 'variety_en', 'contract', 'pre_settlement', 'open_price', 'highest',
+                                             'lowest', 'close_price', 'settlement', 'zd_1', 'zd_2', 'trade_volume',
+                                             'trade_price', 'empty_volume', 'increase_volume'])
+    # 排序
+    table_df = table_df.sort_values(by=['variety_en', 'contract'])
+    # 添加中文列
+    table_df['variety_zh'] = table_df['variety_en'].apply(lambda x: VARIETY_ZH.get(x, x))
+    # 转为字典
+    table_values = table_df.to_dict(orient='records')
     keys = OrderedDict({
-        "id": "ID", "date": "日期", "variety_en": "品种", "contract": "合约", "pre_settlement": "前结算",
+        "date": "日期", "variety_en": "品种", "contract": "合约", "pre_settlement": "前结算",
         "open_price": "开盘价", "highest": "最高价","lowest": "最低价", "close_price": "收盘价",
         "settlement": "结算价", "zd_1": "涨跌1", "zd_2": "涨跌2", "trade_volume": "成交量",
         "trade_price": "成交额", "empty_volume": "持仓量", "increase_volume": "增减量"
     })
     return {
         "message": "大连商品交易所{}日交易行情数据查询成功!".format(query_date),
-        "result": result,
+        "result": table_values,
         "content_keys": keys
     }
 
@@ -400,15 +475,26 @@ async def query_dce_rank(query_date: str = Depends(verify_date)):
     with ExchangeLibDB() as cursor:
         cursor.execute(query_sql)
         result = cursor.fetchall()
+    # pandas数据处理
+    table_df = pd.DataFrame(result, columns=['date', 'variety_en', 'contract', 'rank',
+                                             'trade_company', 'trade', 'trade_increase',
+                                             'long_position_company', 'long_position', 'long_position_increase',
+                                             'short_position_company', 'short_position', 'short_position_increase'])
+    # 排序
+    table_df = table_df.sort_values(by=['variety_en', 'contract', 'rank'])
+    # 添加中文列
+    table_df['variety_zh'] = table_df['variety_en'].apply(lambda x: VARIETY_ZH.get(x, x))
+    # 转为字典
+    table_values = table_df.to_dict(orient='records')
     keys = OrderedDict({
-        "id": "ID", "date": "日期", "variety_en": "品种", "contract": "合约", "rank": "排名",
+        "date": "日期", "variety_en": "品种", "contract": "合约", "rank": "排名",
         "trade_company": "公司简称", "trade": "成交量", "trade_increase": "成交量增减",
         "long_position_company": "公司简称", "long_position": "持买仓量", "long_position_increase": "持买仓量增减",
         "short_position_company": "公司简称", "short_position": "持卖仓量", "short_position_increase": "持卖仓量增减"
     })
     return {
         "message": "大连商品交易所{}日持仓排名数据查询成功!".format(query_date),
-        "result": result,
+        "result": table_values,
         "content_keys": keys
     }
 
