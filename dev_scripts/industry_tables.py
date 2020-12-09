@@ -77,15 +77,3 @@ with MySqlZ() as cursor:
         "`is_private` BIT NOT NULL DEFAULT 0"
         ") DEFAULT CHARSET='utf8';"
     )
-
-    # 品种的现货报价数据
-    cursor.execute(
-        "CREATE TABLE IF NOT EXISTS `industry_spot_price` ("
-        "`id` INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,"
-        "`create_time` DATETIME NOT NULL DEFAULT NOW(),"
-        "`date` VARCHAR(8) NOT NULL,"
-        "`variety_en` VARCHAR(2) NOT NULL,"
-        "`spot_price` DECIMAL(9,2) DEFAULT 0,"
-        "`price_increase` DECIMAL(9,2) DEFAULT 0"
-        ") DEFAULT CHARSET='utf8';"
-    )

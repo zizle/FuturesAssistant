@@ -121,7 +121,6 @@ async def basic_variety(exchange: ExchangeLib = Query(...), is_real: int = Query
     return {"message": "查询品种信息成功!", "varieties": varieties}
 
 
-
 @variety_router.get("/exchange/variety-all/", summary="所有品种以交易所分组")
 async def exchange_variety_all(is_real: int = Query(2, le=2, ge=0)):
     with MySqlZ() as cursor:

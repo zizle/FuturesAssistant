@@ -32,8 +32,8 @@ class SpotPriceItem(BaseModel):
     """ 现货报价数据模型 """
     date: str
     variety_en: str
-    spot_price: float
-    price_increase: float
+    price: float
+    increase: float
 
 
 class ModifySpotItem(SpotPriceItem):

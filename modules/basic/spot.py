@@ -22,8 +22,8 @@ async def spot_variety_all():
 
             with MySqlZ() as m_cursor:
                 m_cursor.execute(
-                    "SELECT variety_en FROM industry_spot_price WHERE "
-                    "`date`=(SELECT MAX(`date`) FROM industry_spot_price) "
+                    "SELECT variety_en FROM zero_spot_price WHERE "
+                    "`date`=(SELECT MAX(`date`) FROM zero_spot_price) "
                     "GROUP BY variety_en;"
                 )
                 query_all = m_cursor.fetchall()
