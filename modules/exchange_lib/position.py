@@ -244,11 +244,11 @@ async def generate_rank_position(option_day: str = Body(..., embed=True), user_t
     return {"message": "保存{}排名持仓和数据成功!数量{}个".format(query_date, count)}
 
 
-@position_router.get("/rank-position/all-variety/", summary='查询全品种净持仓数据')
+@position_router.get("/rank-position/all-variety/", summary='查询全品种近35天净持仓数据')
 def get_rank_position(interval_days: int = Query(1)):
-    # 获取当前日期及45天前
+    # 获取当前日期及35天前
     current_date = datetime.today()
-    pre_date = current_date + timedelta(days=-45)
+    pre_date = current_date + timedelta(days=-35)
     start_date = pre_date.strftime('%Y%m%d')
     end_date = current_date.strftime('%Y%m%d')
     with ExchangeLibDB() as ex_cursor:
@@ -291,3 +291,32 @@ def get_rank_position(interval_days: int = Query(1)):
     for item in data_dict:
         final_data[item['variety_en']] = item
     return {"message": "查询全品种净持仓数据成功!", "data": final_data, 'header_keys': header_keys}
+
+
+@position_router.get('/rank-position/', summary='查询品种净持仓数据')
+def rank_net_position(variety: str = Query(0), day_count: int = Query(30)):
+    # 获取日期
+    current_date = datetime.today()
+    pre_date = current_date + timedelta(days=-day_count)
+    start_date = pre_date.strftime('%Y%m%d')
+    end_date = current_date.strftime('%Y%m%d')
+    # 查询
+    with ExchangeLibDB() as ex_cursor:
+        ex_cursor.execute(
+            "SELECT `date`,variety_en,long_position,short_position,net_position,"
+            "net_position_increase FROM zero_rank_position "
+            "WHERE `date`>=%s AND `date`<=%s AND IF('0'=%s,TRUE,variety_en=%s);",
+            (start_date, end_date, variety, variety)
+        )
+        all_data = ex_cursor.fetchall()
+    if not all_data:
+        return {"message": "查询全品种净持仓数据成功!", "data": [], 'header_keys': {}}
+    # 整成pandas
+    all_variety_df = DataFrame(all_data)
+    # 增加中文列
+    all_variety_df["variety_zh"] = all_variety_df["variety_en"].apply(get_variety_zh)
+    data_list = all_variety_df.to_dict(orient='records')
+    # final_data = dict()
+    # for item in data_dict:
+    #     final_data[item['variety_en']] = item
+    return {"message": "查询全品种净持仓数据成功!", "data": data_list}

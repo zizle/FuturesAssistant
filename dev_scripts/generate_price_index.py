@@ -4,7 +4,6 @@
 # @Author: zizle
 """ 生成品种权重价格指数和主力合约价格指数表 """
 import time
-import sys
 import pandas as pd
 import datetime
 from db.mysql_z import ExchangeLibDB, MySqlZ
@@ -25,14 +24,14 @@ def read_data(query_date):
     print("开始处理{}的价格指数数据.".format(query_date))
     # 读取各交易所的日行情数据并进性处理
     with ExchangeLibDB() as ex_cursor:
-        # 查询中金所的日行情数据
-        ex_cursor.execute(
-            "SELECT `date`,variety_en,contract,close_price,empty_volume,trade_volume "
-            "FROM cffex_daily "
-            "WHERE `date`=%s;",
-            (query_date, )
-        )
-        cffex_daily = ex_cursor.fetchall()
+        # # 查询中金所的日行情数据
+        # ex_cursor.execute(
+        #     "SELECT `date`,variety_en,contract,close_price,empty_volume,trade_volume "
+        #     "FROM cffex_daily "
+        #     "WHERE `date`=%s;",
+        #     (query_date, )
+        # )
+        # cffex_daily = ex_cursor.fetchall()
         # 查询郑商所得日行情数据
         ex_cursor.execute(
             "SELECT `date`,variety_en,contract,close_price,empty_volume,trade_volume "
@@ -58,7 +57,8 @@ def read_data(query_date):
         )
         shfe_daily = ex_cursor.fetchall()
     # 加和
-    all_daily = list(cffex_daily) + list(czce_daily) + list(dce_daily) + list(shfe_daily)
+    # all_daily = list(cffex_daily) + list(czce_daily) + list(dce_daily) + list(shfe_daily)
+    all_daily = list(czce_daily) + list(dce_daily) + list(shfe_daily)
     if not all_daily:
         return {}
     # 转为数据框
@@ -73,9 +73,8 @@ def read_data(query_date):
     # print('=' * 50)
     # 分组得到最大持仓量(主力合约)
     dominant_df = daily_df.groupby('variety_en').apply(lambda x: x[x.empty_volume == x.empty_volume.max()])
-    # 如果最大持仓量相同则根据成交量去重
     dominant_df.index = dominant_df.index.droplevel(0)  # 删除一个索引
-    # 再次分组取成交量大的(持仓量一致会导致重复的去重操作)
+    # 再次分组取成交量大的(持仓量一致会导致重复的去重操作)# 如果最大持仓量相同则根据成交量去重
     dominant_df = dominant_df.groupby('variety_en').apply(lambda x: x[x.trade_volume == x.trade_volume.max()])
     # 取值
     dominant_df = dominant_df[['date', 'close_price']].reset_index()
@@ -115,9 +114,9 @@ def save_data(items):
     # for i in items:
     #     print(i)
     items = list(filter(filter_items, items))
-    with MySqlZ() as m_cursor:
+    with ExchangeLibDB() as m_cursor:
         count = m_cursor.executemany(
-            "INSERT INTO contribute_price_index"
+            "INSERT INTO zero_price_index"
             "(`date`,variety_en,total_position,total_trade,dominant_price,weight_price) "
             "VALUES (%(date)s,%(variety_en)s,%(total_position)s,%(total_trade)s,%(dominant_price)s,%(weight_price)s);",
             items
@@ -126,7 +125,7 @@ def save_data(items):
 
 
 if __name__ == '__main__':
-    for op_date in date_generator('20200101', '20201109'):
+    for op_date in date_generator('20060101', '20091231'):
         result = read_data(op_date)
         save_data(result)
         # save_data(result)

@@ -6,12 +6,10 @@ from fastapi import APIRouter
 from .client import client_router
 from .variety import variety_router
 from .advertisement import ad_router
-from .spot import spot_router
 
 basic_router = APIRouter()
 
 basic_router.include_router(client_router)
 basic_router.include_router(variety_router)
 basic_router.include_router(ad_router)
-basic_router.include_router(spot_router)
 
