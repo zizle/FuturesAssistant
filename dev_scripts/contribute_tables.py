@@ -54,13 +54,10 @@ def exchange_lib_tables():
             "`short_position` INT(11) NOT NULL DEFAULT 0,"
             "`short_position_increase` INT(11) NOT NULL DEFAULT 0,"
             "`net_position` INT(11) NOT NULL DEFAULT 0,"
-            "`net_position_increase` INT(11) NOT NULL DEFAULT 0"
+            "`net_position_increase` INT(11) NOT NULL DEFAULT 0,"
+            "UNIQUE KEY `date`(`date`,variety_en)"
             ") DEFAULT CHARSET='utf8';"
         )
-
-
-def futures_assistant_tables():
-    with MySqlZ() as m_cursor:
         # 品种的现货报价数据
         m_cursor.execute(
             "CREATE TABLE IF NOT EXISTS `zero_spot_price` ("
@@ -74,5 +71,4 @@ def futures_assistant_tables():
         )
 
 if __name__ == '__main__':
-    # exchange_lib_tables()
-    futures_assistant_tables()
+    exchange_lib_tables()

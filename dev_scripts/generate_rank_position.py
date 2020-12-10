@@ -34,7 +34,7 @@ def query_preday(query_date):
 
 # 查询和生成数据到数据库
 def query_and_generate_to_lib(query_date):
-    # # 获取当前最近一天前的数据(第一天的数据录入不用)
+    # 获取当前最近一天前的数据(第一天的数据录入不用)
     pre_data = query_preday(query_date)
     # # 转为dict
     pre_dict = {}
@@ -44,16 +44,16 @@ def query_and_generate_to_lib(query_date):
     query_date = query_date.strftime("%Y%m%d")
     # 查询四大交易所数据
     with ExchangeLibDB() as cursor:
-        # 查询中金所品种持仓
-        cursor.execute(
-            "select `date`,variety_en,"
-            "sum(long_position) as long_position,sum(short_position) as short_position "
-            "from cffex_rank "
-            "where date=%s and `rank`>=1 and `rank`<=20 "
-            "group by variety_en;",
-            (query_date, )
-        )
-        cffex_positions = cursor.fetchall()
+        # # 查询中金所品种持仓
+        # cursor.execute(
+        #     "select `date`,variety_en,"
+        #     "sum(long_position) as long_position,sum(short_position) as short_position "
+        #     "from cffex_rank "
+        #     "where date=%s and `rank`>=1 and `rank`<=20 "
+        #     "group by variety_en;",
+        #     (query_date, )
+        # )
+        # cffex_positions = cursor.fetchall()
         # 查询郑商所品种持仓
         cursor.execute(
             "select `date`,variety_en,"
@@ -64,16 +64,16 @@ def query_and_generate_to_lib(query_date):
             (query_date, )
         )
         czce_positions = cursor.fetchall()
-        # # 查询大商所品种持仓
-        cursor.execute(
-            "select `date`,variety_en,"
-            "sum(long_position) as long_position,sum(short_position) as short_position "
-            "from dce_rank "
-            "where date=%s and `rank`>=1 and `rank`<=20 "
-            "group by variety_en;",
-            (query_date,)
-        )
-        dce_positions = cursor.fetchall()
+        # # # 查询大商所品种持仓
+        # cursor.execute(
+        #     "select `date`,variety_en,"
+        #     "sum(long_position) as long_position,sum(short_position) as short_position "
+        #     "from dce_rank "
+        #     "where date=%s and `rank`>=1 and `rank`<=20 "
+        #     "group by variety_en;",
+        #     (query_date,)
+        # )
+        # dce_positions = cursor.fetchall()
         # 查询上期所持仓
         cursor.execute(
             "select `date`,variety_en,"
@@ -86,8 +86,8 @@ def query_and_generate_to_lib(query_date):
         shfe_positions = cursor.fetchall()
 
         # 合并以上查询的结果
-        save_items = list(cffex_positions) + list(czce_positions) + list(dce_positions) + list(shfe_positions)
-        # save_items = list(czce_positions) + list(dce_positions) + list(shfe_positions)
+        # save_items = list(cffex_positions) + list(czce_positions) + list(dce_positions) + list(shfe_positions)
+        save_items = list(czce_positions) + list(shfe_positions)
         # print("="*100)
         # 转换数据类型
         for item in save_items:
@@ -122,7 +122,7 @@ def query_and_generate_to_lib(query_date):
 
 
 if __name__ == '__main__':
-    for op_date in date_generator("20150101", "20191231"):
+    for op_date in date_generator("20050429", "20051231"):
         query_and_generate_to_lib(op_date)
         time.sleep(1)
 

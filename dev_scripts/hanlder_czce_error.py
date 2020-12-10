@@ -29,15 +29,22 @@ def handler_daily(start_id, end_id):
             split_contract = split_number_en(item['contract'])
             middle_contract = split_contract[1][:2]
             # 如果contract取的数小于date取得的数，那么contract的年份位需为date的年份位+1
-            if int(suffix_year) > int(middle_contract):
-                real_year = '%02d' % (int(suffix_year) + 1)
-                real_contract = split_contract[0] + real_year + split_contract[1][-2:]
+            if int(middle_contract) < int(suffix_year) < 10:
+                real_contract = split_contract[0] + '10' + split_contract[1][-2:]
                 # 更新数据
                 cp = ex_cursor.execute(
                     'UPDATE czce_daily SET contract=%s WHERE id=%s;', (real_contract, item['id'])
                 )
-                print('{}-{}数据不正常,更新影响了记录数:{}'.format(item['id'], item['date'], cp))
-                logger.error('{}-{}数据不正常,更新影响了记录数:{}'.format(item['id'], item['date'], cp))
+                print('{}-{}数据不正常,由{}->{},更新影响了记录数:{}'.format(item['id'], item['date'], item['contract'], real_contract,cp))
+                logger.error('{}-{}数据不正常,由{}->{},更新影响了记录数:{}'.format(item['id'], item['date'], item['contract'], real_contract, cp))
+            if 10 <= int(middle_contract) < int(suffix_year) < 20:
+                real_contract = split_contract[0] + '20' + split_contract[1][-2:]
+                # 更新数据
+                cp = ex_cursor.execute(
+                    'UPDATE czce_daily SET contract=%s WHERE id=%s;', (real_contract, item['id'])
+                )
+                print('{}-{}数据不正常,由{}->{},更新影响了记录数:{}'.format(item['id'], item['date'], item['contract'], real_contract, cp))
+                logger.error('{}-{}数据不正常,由{}->{},更新影响了记录数:{}'.format(item['id'], item['date'], item['contract'], real_contract, cp))
         return True
 
 
@@ -62,15 +69,26 @@ def handler_rank(start_id, end_id):
             split_contract = split_number_en(item['contract'])
             middle_contract = split_contract[1][:2]
             # 如果contract取的数小于date取得的数，那么contract的年份位需为date的年份位+1
-            if int(suffix_year) > int(middle_contract):
-                real_year = '%02d' % (int(suffix_year) + 1)
-                real_contract = split_contract[0] + real_year + split_contract[1][-2:]
+            if int(middle_contract) < int(suffix_year) < 10:
+                real_contract = split_contract[0] + '10' + split_contract[1][-2:]
                 # 更新数据
                 cp = ex_cursor.execute(
                     'UPDATE czce_rank SET contract=%s WHERE id=%s;', (real_contract, item['id'])
                 )
-                print('{}-{}数据不正常,更新影响了记录数:{}'.format(item['id'], item['date'], cp))
-                logger.error('{}-{}数据不正常,更新影响了记录数:{}'.format(item['id'], item['date'], cp))
+                print('{}-{}数据不正常,由{}->{},更新影响了记录数:{}'.format(item['id'], item['date'], item['contract'],
+                                                              real_contract, cp))
+                logger.error('{}-{}数据不正常,由{}->{},更新影响了记录数:{}'.format(item['id'], item['date'], item['contract'],
+                                                                     real_contract, cp))
+            if 10 <= int(middle_contract) < int(suffix_year) < 20:
+                real_contract = split_contract[0] + '20' + split_contract[1][-2:]
+                # 更新数据
+                cp = ex_cursor.execute(
+                    'UPDATE czce_rank SET contract=%s WHERE id=%s;', (real_contract, item['id'])
+                )
+                print('{}-{}数据不正常,由{}->{},更新影响了记录数:{}'.format(item['id'], item['date'], item['contract'],
+                                                              real_contract, cp))
+                logger.error('{}-{}数据不正常,由{}->{},更新影响了记录数:{}'.format(item['id'], item['date'], item['contract'],
+                                                                     real_contract, cp))
         return True
 
 
@@ -80,8 +98,8 @@ if __name__ == '__main__':
     while flag:
         s = count * 10000
         e = s + 9999
-        # flag = handler_daily(s, e)
-        flag = handler_rank(s, e)
+        flag = handler_daily(s, e)
+        # flag = handler_rank(s, e)
         count += 1
         time.sleep(2)
 

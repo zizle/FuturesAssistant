@@ -6,11 +6,12 @@
 """ 品种的现货报价 """
 import math
 from typing import List
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Query, HTTPException, Body, Depends
 from fastapi.encoders import jsonable_encoder
-from db.mysql_z import MySqlZ
-from utils.constant import VARIETY_ZH
+from db.mysql_z import MySqlZ, ExchangeLibDB
+from db.redis_z import RedisZ
+from utils.constant import VARIETY_ZH, SPOT_VARIETY_ZH
 from .models import SpotPriceItem, ModifySpotItem
 
 
@@ -26,10 +27,40 @@ async def verify_date(date: str = Query(...)):
     return int(date.timestamp())
 
 
+@spot_price_router.get('/spot-variety/', summary="所有现货品种")
+async def spot_variety_all():
+    # 获取redis中存储的品种
+    with RedisZ() as r_redis:
+        varieties = r_redis.get("spot_variety")
+        if not varieties:  # 没有获取到品种
+            # 查询所有品种数据
+            with ExchangeLibDB() as m_cursor:
+                m_cursor.execute(
+                    "SELECT variety_en FROM zero_spot_price WHERE "
+                    "`date`=(SELECT MAX(`date`) FROM zero_spot_price) "
+                    "GROUP BY variety_en;"
+                )
+                query_all = m_cursor.fetchall()
+            # 处理名称
+            varieties = []
+            for query_item in query_all:
+                varieties.append(
+                    (query_item["variety_en"], SPOT_VARIETY_ZH.get(query_item["variety_en"], query_item["variety_en"]))
+                )
+            # 将数据存入redis
+            current_time = datetime.now()
+            next_day = datetime.strptime(current_time.strftime("%Y%m%d"), "%Y%m%d") + timedelta(days=1)
+            expire_seconds = (next_day - current_time).seconds
+            r_redis.set("spot_variety", str(varieties), ex=expire_seconds)
+        else:
+            varieties = eval(varieties)
+    return {"message": "查询成功!", "varieties": varieties}
+
+
 @spot_price_router.post("/spot-price/", summary="上传现货价格数据")
 async def spot_price(sources: List[SpotPriceItem] = Body(...), current_date: str = Depends(verify_date)):
     data_json = jsonable_encoder(sources)
-    with MySqlZ() as cursor:
+    with ExchangeLibDB() as cursor:
         count = cursor.executemany(
             "INSERT IGNORE INTO `zero_spot_price` "
             "(`date`,`variety_en`,`price`,`increase`) "
@@ -42,7 +73,7 @@ async def spot_price(sources: List[SpotPriceItem] = Body(...), current_date: str
 
 @spot_price_router.get("/spot-price/", summary="获取某日现货价格数据")
 async def query_spot_price(query_date: int = Depends(verify_date)):
-    with MySqlZ() as cursor:
+    with ExchangeLibDB() as cursor:
         cursor.execute(
            "SELECT id,`date`,variety_en,price,increase "
            "FROM zero_spot_price "
@@ -61,7 +92,7 @@ async def query_spot_price(query_date: int = Depends(verify_date)):
 
 @spot_price_router.put("/spot-price/{record_id}/", summary="修改某个现货价格记录")
 async def modify_spot_price(record_id: int, spot_item: ModifySpotItem = Body(...)):
-    with MySqlZ() as cursor:
+    with ExchangeLibDB() as cursor:
         cursor.execute(
             "UPDATE zero_spot_price SET "
             "price=%(price)s,increase=%(increase)s "
@@ -73,7 +104,7 @@ async def modify_spot_price(record_id: int, spot_item: ModifySpotItem = Body(...
 
 @spot_price_router.get("/latest-spotprice/", summary="首页即时现货报价")
 def get_latest_spot_price(count: int = Query(5, ge=5, le=50)):
-    with MySqlZ() as cursor:
+    with ExchangeLibDB() as cursor:
         cursor.execute(
             "SELECT id,`date`,variety_en,price,increase "
             "FROM zero_spot_price "

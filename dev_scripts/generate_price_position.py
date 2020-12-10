@@ -127,28 +127,27 @@ def filter_items(item):
 def save_data(items):
     # items.pop(-1)
     items = list(filter(filter_items, items))
-    print(len(items))
-    # for item in items:
-    #     print(item)
+    for item in items:
+        print(item)
     if not items:
         print("数据为空!")
         return
-    with MySqlZ() as m_cursor:
-        count = m_cursor.executemany(
-            "INSERT INTO contribute_price_position"
-            "(`date`,variety_en,contract,close_price,settlement,empty_volume,long_position,short_position) "
-            "VALUES (%(date)s,%(variety_en)s,%(contract)s,%(close_price)s,%(settlement)s,%(empty_volume)s,"
-            "%(long_position)s,%(short_position)s);",
-            items
-        )
-    print("增加{}个数据.".format(count))
+    # with ExchangeLibDB() as m_cursor:
+    #     count = m_cursor.executemany(
+    #         "INSERT INTO zero_price_position"
+    #         "(`date`,variety_en,contract,close_price,settlement,empty_volume,long_position,short_position) "
+    #         "VALUES (%(date)s,%(variety_en)s,%(contract)s,%(close_price)s,%(settlement)s,%(empty_volume)s,"
+    #         "%(long_position)s,%(short_position)s);",
+    #         items
+    #     )
+    # print("增加{}个数据.".format(count))
     # for item in items:
     #     print(item)
     # print(len(items))
 
 
 if __name__ == '__main__':
-    for op_date in date_generator('20201101', '20201109'):
+    for op_date in date_generator('20080715', '20080715'):
         result = read_data(op_date)
         save_data(result)
         # print(int(op_date.timestamp()))
