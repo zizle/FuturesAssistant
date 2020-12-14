@@ -61,6 +61,19 @@ async def spot_variety_all():
 async def spot_price(sources: List[SpotPriceItem] = Body(...), current_date: str = Depends(verify_date)):
     data_json = jsonable_encoder(sources)
     with ExchangeLibDB() as cursor:
+        # 获取今日之前最新的现货价格数据
+        cursor.execute(
+            "SELECT * FROM zero_spot_price WHERE `date`=(SELECT MAX(`date`) FROM zero_spot_price);"
+        )
+        pre_spots = cursor.fetchall()
+        # 转为dict
+        pre_spots_dict = {item['variety_en']: item['price'] for item in pre_spots}
+        for spot_item in data_json:
+            pre_price = pre_spots_dict.get(spot_item['variety_en'])
+            if pre_price:
+                spot_item['increase'] = round(float(spot_item['price'] - float(pre_price)), 4)
+            else:
+                spot_item['increase'] = spot_item['price']
         count = cursor.executemany(
             "INSERT IGNORE INTO `zero_spot_price` "
             "(`date`,`variety_en`,`price`,`increase`) "

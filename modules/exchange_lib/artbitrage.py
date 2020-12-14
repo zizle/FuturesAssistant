@@ -55,9 +55,11 @@ async def arbitrage_variety(query_item: ArbitrageItem = Body(...)):
     # 分别查询品种所在的交易所
     table1, table2 = None, None
     # 根据当前日期计算出日期
-    today = datetime.datetime.today()
-    start_date = (today + datetime.timedelta(days=-query_item.day_count)).strftime('%Y%m%d')
-    end_date = today.strftime('%Y%m%d')
+    today = datetime.datetime.strptime(datetime.datetime.today().strftime('%Y%m%d'), '%Y%m%d')
+
+    start_date = int((today + datetime.timedelta(days=-query_item.day_count)).timestamp())
+    end_date = int(today.timestamp())
+
     with MySqlZ() as m_cursor:
         m_cursor.execute(
             "SELECT id,variety_name,exchange_lib FROM basic_variety WHERE variety_en=%s;",
@@ -88,9 +90,13 @@ async def arbitrage_variety(query_item: ArbitrageItem = Body(...)):
     # 处理数据
     df1 = pd.DataFrame(contract_data1)
     df1.columns = ["date", "closePrice1"]
+    # 转换date
+    df1['date'] = df1['date'].apply(lambda x: datetime.datetime.fromtimestamp(x).strftime('%Y%m%d'))
 
     df2 = pd.DataFrame(contract_data2)
     df2.columns = ["date", "closePrice2"]
+    df2['date'] = df2['date'].apply(lambda x: datetime.datetime.fromtimestamp(x).strftime('%Y%m%d'))
+
     data = data_frame_handler(df1, df2)
     # 图形需要的基础参数
     base_option = {
@@ -161,8 +167,11 @@ async def season_contract_arbitrage(
     # pandas处理数据
     contract1_df = pd.DataFrame(contract_data1)
     contract1_df.columns = ['date', 'contract1', 'closePrice1']
+    contract1_df['date'] = contract1_df['date'].apply(lambda x: datetime.datetime.fromtimestamp(x).strftime('%Y%m%d'))
+
     contract2_df = pd.DataFrame(contract_data2)
     contract2_df.columns = ['date', 'contract2', 'closePrice2']
+    contract2_df['date'] = contract2_df['date'].apply(lambda x: datetime.datetime.fromtimestamp(x).strftime('%Y%m%d'))
 
     # 跨越的日期区间
     min_date = '30001231'
@@ -227,9 +236,10 @@ async def arbitrage_variety(query_item: ArbitrageItem = Body(...)):
     table1 = None
     variety1 = ""
     # 根据当前日期计算出日期
-    today = datetime.datetime.today()
-    start_date = (today + datetime.timedelta(days=-query_item.day_count)).strftime('%Y%m%d')
-    end_date = today.strftime('%Y%m%d')
+    today = datetime.datetime.strptime(datetime.datetime.today().strftime('%Y%m%d'), '%Y%m%d')
+
+    start_date = int((today + datetime.timedelta(days=-query_item.day_count)).timestamp())
+    end_date = int(today.timestamp())
 
     with MySqlZ() as m_cursor:
         m_cursor.execute(
@@ -250,9 +260,6 @@ async def arbitrage_variety(query_item: ArbitrageItem = Body(...)):
         ex_cursor.execute(query_sql1, (query_item.contract_1, start_date, end_date))
         contract_data1 = ex_cursor.fetchall()
 
-        # 查询现货价格
-        start_date = int(datetime.datetime.strptime(start_date, '%Y%m%d').timestamp())
-        end_date = int(datetime.datetime.strptime(end_date, '%Y%m%d').timestamp())
         ex_cursor.execute(
             "SELECT `date`,price FROM zero_spot_price "
             "WHERE variety_en=%s AND `date`>=%s AND `date`<=%s ORDER BY `date`;",
@@ -265,11 +272,14 @@ async def arbitrage_variety(query_item: ArbitrageItem = Body(...)):
     # 处理数据
     df1 = pd.DataFrame(contract_data1)
     df1.columns = ["date", "closePrice1"]
+    # 转换date
+    df1['date'] = df1['date'].apply(lambda x: datetime.datetime.fromtimestamp(x).strftime('%Y%m%d'))
 
     df2 = pd.DataFrame(spot_prices)
     df2.columns = ["date", "closePrice2"]
     # 将现货的date字段转为date
     df2['date'] = df2['date'].apply(lambda x: datetime.datetime.fromtimestamp(x).strftime('%Y%m%d'))
+
     data = data_frame_handler(df1, df2)
     # 图形需要的基础参数
     base_option = {

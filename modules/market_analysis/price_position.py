@@ -32,7 +32,7 @@ def filter_items(item):
 async def generate_price_position(option_day: str = Body(..., embed=True), user_token: str = Depends(oauth2_scheme)):
     # 验证日期格式
     try:
-        option_day = datetime.datetime.strptime(option_day, "%Y%m%d")
+        option_day = int(datetime.datetime.strptime(option_day, "%Y%m%d").timestamp())
     except Exception:
         return {"message": "日期格式有误!"}
     user_id, _ = decipher_user_token(user_token)
@@ -45,7 +45,6 @@ async def generate_price_position(option_day: str = Body(..., embed=True), user_
         if not user_info or user_info["role"] not in ["superuser", "operator"]:
             return {"message": "暂无权限操作"}
     # 进行数据生成
-    query_date = option_day.strftime("%Y%m%d")
     # 读取每日的行情数据(收盘价,结算价,持仓量)
     # 和每日排名数据(多头,空头)
     with ExchangeLibDB() as ex_cursor:
@@ -54,7 +53,7 @@ async def generate_price_position(option_day: str = Body(..., embed=True), user_
             "SELECT `date`,variety_en,contract,close_price,settlement,empty_volume "
             "FROM cffex_daily "
             "WHERE `date`=%s;",
-            (query_date,)
+            (option_day,)
         )
         cffex_daily = ex_cursor.fetchall()
         # 查询郑商所的行情数据
@@ -62,7 +61,7 @@ async def generate_price_position(option_day: str = Body(..., embed=True), user_
             "SELECT `date`,variety_en,contract,close_price,settlement,empty_volume "
             "FROM czce_daily "
             "WHERE `date`=%s;",
-            (query_date,)
+            (option_day,)
         )
         czce_daily = ex_cursor.fetchall()
         # 查询大商所的行情数据
@@ -70,7 +69,7 @@ async def generate_price_position(option_day: str = Body(..., embed=True), user_
             "SELECT `date`,variety_en,contract,close_price,settlement,empty_volume "
             "FROM dce_daily "
             "WHERE `date`=%s;",
-            (query_date,)
+            (option_day,)
         )
         dce_daily = ex_cursor.fetchall()
         # 查询上期所的行情数据
@@ -78,7 +77,7 @@ async def generate_price_position(option_day: str = Body(..., embed=True), user_
             "SELECT `date`,variety_en,contract,close_price,settlement,empty_volume "
             "FROM shfe_daily "
             "WHERE `date`=%s;",
-            (query_date,)
+            (option_day,)
         )
         shfe_daily = ex_cursor.fetchall()
         all_daily = list(cffex_daily) + list(czce_daily) + list(dce_daily) + list(shfe_daily)
@@ -91,7 +90,7 @@ async def generate_price_position(option_day: str = Body(..., embed=True), user_
             "FROM cffex_rank "
             "WHERE `date`=%s "
             "GROUP BY contract;",
-            (query_date,)
+            (option_day,)
         )
         cffex_rank = ex_cursor.fetchall()
         # 查询日郑商所排名合约统计
@@ -100,7 +99,7 @@ async def generate_price_position(option_day: str = Body(..., embed=True), user_
             "FROM czce_rank "
             "WHERE `date`=%s AND contract<>variety_en "
             "GROUP BY contract;",
-            (query_date,)
+            (option_day,)
         )
         czce_rank = ex_cursor.fetchall()
 
@@ -110,7 +109,7 @@ async def generate_price_position(option_day: str = Body(..., embed=True), user_
             "FROM dce_rank "
             "WHERE `date`=%s "
             "GROUP BY contract;",
-            (query_date,)
+            (option_day,)
         )
         dce_rank = ex_cursor.fetchall()
         # 查询上期所排名合约统计
@@ -119,7 +118,7 @@ async def generate_price_position(option_day: str = Body(..., embed=True), user_
             "FROM shfe_rank "
             "WHERE `date`=%s "
             "GROUP BY contract;",
-            (query_date,)
+            (option_day,)
         )
         shfe_rank = ex_cursor.fetchall()
         # 合并
@@ -132,7 +131,7 @@ async def generate_price_position(option_day: str = Body(..., embed=True), user_
     # 填写空值
     result_df = result_df.fillna(0)
     # date转为int时间戳
-    result_df['date'] = result_df['date'].apply(lambda x: int(datetime.datetime.strptime(x, '%Y%m%d').timestamp()))
+    # result_df['date'] = result_df['date'].apply(lambda x: int(datetime.datetime.strptime(x, '%Y%m%d').timestamp()))
     # 多空转为int
     result_df['long_position'] = result_df['long_position'].astype(int)
     result_df['short_position'] = result_df['short_position'].astype(int)
@@ -150,7 +149,7 @@ async def generate_price_position(option_day: str = Body(..., embed=True), user_
             "%(long_position)s,%(short_position)s);",
             save_items
         )
-    return {"message": "保存{}价格-净持率数据成功!数量{}个".format(query_date, count)}
+    return {"message": "保存{}价格-净持率数据成功!数量{}个".format(datetime.datetime.fromtimestamp(option_day).strftime('%Y-%m-%d'), count)}
 
 
 @price_position_router.get('/price-position-contracts/', summary='获取品种价格持仓的所有合约')

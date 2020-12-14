@@ -30,7 +30,7 @@ def filter_items(item):
 async def generate_price_index(option_day: str = Body(..., embed=True), user_token: str = Depends(oauth2_scheme)):
     # 验证日期格式
     try:
-        option_day = datetime.datetime.strptime(option_day, "%Y%m%d")
+        option_day = int(datetime.datetime.strptime(option_day, "%Y%m%d").timestamp())
     except Exception:
         return {"message": "日期格式有误!"}
     user_id, _ = decipher_user_token(user_token)
@@ -43,7 +43,6 @@ async def generate_price_index(option_day: str = Body(..., embed=True), user_tok
         if not user_info or user_info["role"] not in ["superuser", "operator"]:
             return {"message": "暂无权限操作"}
     # 进行数据生成
-    query_date = option_day.strftime("%Y%m%d")
     # 读取各交易所的日行情数据并进性处理
     with ExchangeLibDB() as ex_cursor:
         # 查询中金所的日行情数据
@@ -51,7 +50,7 @@ async def generate_price_index(option_day: str = Body(..., embed=True), user_tok
             "SELECT `date`,variety_en,contract,close_price,empty_volume,trade_volume "
             "FROM cffex_daily "
             "WHERE `date`=%s;",
-            (query_date,)
+            (option_day,)
         )
         cffex_daily = ex_cursor.fetchall()
         # 查询郑商所得日行情数据
@@ -59,7 +58,7 @@ async def generate_price_index(option_day: str = Body(..., embed=True), user_tok
             "SELECT `date`,variety_en,contract,close_price,empty_volume,trade_volume "
             "FROM czce_daily "
             "WHERE `date`=%s;",
-            (query_date,)
+            (option_day,)
         )
         czce_daily = ex_cursor.fetchall()
         # 查询大商所得日行情数据
@@ -67,7 +66,7 @@ async def generate_price_index(option_day: str = Body(..., embed=True), user_tok
             "SELECT `date`,variety_en,contract,close_price,empty_volume,trade_volume "
             "FROM dce_daily "
             "WHERE `date`=%s;",
-            (query_date,)
+            (option_day,)
         )
         dce_daily = ex_cursor.fetchall()
         # 查询上期所得日行情数据
@@ -75,7 +74,7 @@ async def generate_price_index(option_day: str = Body(..., embed=True), user_tok
             "SELECT `date`,variety_en,contract,close_price,empty_volume,trade_volume "
             "FROM shfe_daily "
             "WHERE `date`=%s;",
-            (query_date,)
+            (option_day,)
         )
         shfe_daily = ex_cursor.fetchall()
     # 加和
@@ -115,7 +114,7 @@ async def generate_price_index(option_day: str = Body(..., embed=True), user_tok
     # 重置index
     result_df.columns = ['date', 'variety_en', 'dominant_price', 'weight_price', 'total_position', 'total_trade']
     # date转为int时间戳
-    result_df['date'] = result_df['date'].apply(lambda x: int(datetime.datetime.strptime(x, '%Y%m%d').timestamp()))
+    # result_df['date'] = result_df['date'].apply(lambda x: int(datetime.datetime.strptime(x, '%Y%m%d').timestamp()))
     # 去重
     result_df.drop_duplicates(inplace=True)
     # 还是重复继续去重
@@ -132,7 +131,7 @@ async def generate_price_index(option_day: str = Body(..., embed=True), user_tok
             "VALUES (%(date)s,%(variety_en)s,%(total_position)s,%(total_trade)s,%(dominant_price)s,%(weight_price)s);",
             save_items
         )
-    return {"message": "保存{}指数数据成功!数量{}个".format(query_date, count)}
+    return {"message": "保存{}指数数据成功!数量{}个".format(datetime.datetime.fromtimestamp(option_day).strftime('%Y-%m-%d'), count)}
 
 
 @price_index_router.get('/price-index-dates/', summary='品种下的时间跨度')
@@ -159,7 +158,8 @@ async def price_index(
         ex_cursor.execute(
             "SELECT id,`date`,variety_en,total_position,total_trade,dominant_price,weight_price "
             "FROM zero_price_index "
-            "WHERE `date`>=%s AND `date`<=%s AND variety_en=%s;",
+            "WHERE `date`>=%s AND `date`<=%s AND variety_en=%s "
+            "ORDER BY `date`;",
             (min_date, max_date, variety_en)
         )
         analysis_data = ex_cursor.fetchall()

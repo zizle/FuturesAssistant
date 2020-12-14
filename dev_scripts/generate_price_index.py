@@ -20,18 +20,20 @@ def date_generator(start, end):
 
 
 def read_data(query_date):
-    query_date = datetime.datetime.strftime(query_date, '%Y%m%d')
-    print("开始处理{}的价格指数数据.".format(query_date))
+    # 转int时间戳
+    query_date = int(datetime.datetime.strptime(query_date.strftime("%Y%m%d"), '%Y%m%d').timestamp())
+    # query_date = datetime.datetime.strftime(query_date, '%Y%m%d')
+    print("开始处理{}的价格指数数据.".format(datetime.datetime.fromtimestamp(query_date).strftime('%Y-%m-%d')))
     # 读取各交易所的日行情数据并进性处理
     with ExchangeLibDB() as ex_cursor:
-        # # 查询中金所的日行情数据
-        # ex_cursor.execute(
-        #     "SELECT `date`,variety_en,contract,close_price,empty_volume,trade_volume "
-        #     "FROM cffex_daily "
-        #     "WHERE `date`=%s;",
-        #     (query_date, )
-        # )
-        # cffex_daily = ex_cursor.fetchall()
+        # 查询中金所的日行情数据
+        ex_cursor.execute(
+            "SELECT `date`,variety_en,contract,close_price,empty_volume,trade_volume "
+            "FROM cffex_daily "
+            "WHERE `date`=%s;",
+            (query_date, )
+        )
+        cffex_daily = ex_cursor.fetchall()
         # 查询郑商所得日行情数据
         ex_cursor.execute(
             "SELECT `date`,variety_en,contract,close_price,empty_volume,trade_volume "
@@ -57,8 +59,8 @@ def read_data(query_date):
         )
         shfe_daily = ex_cursor.fetchall()
     # 加和
-    # all_daily = list(cffex_daily) + list(czce_daily) + list(dce_daily) + list(shfe_daily)
-    all_daily = list(czce_daily) + list(dce_daily) + list(shfe_daily)
+    all_daily = list(cffex_daily) + list(czce_daily) + list(dce_daily) + list(shfe_daily)
+    # all_daily = list(czce_daily) + list(dce_daily) + list(shfe_daily)
     if not all_daily:
         return {}
     # 转为数据框
@@ -91,8 +93,8 @@ def read_data(query_date):
     result_df = result_df.fillna(0)
     # 重置index
     result_df.columns = ['date', 'variety_en', 'dominant_price', 'weight_price', 'total_position', 'total_trade']
-    # date转为int时间戳
-    result_df['date'] = result_df['date'].apply(lambda x: int(datetime.datetime.strptime(x, '%Y%m%d').timestamp()))
+    # # date转为int时间戳
+    # result_df['date'] = result_df['date'].apply(lambda x: int(datetime.datetime.strptime(x, '%Y%m%d').timestamp()))
     # 去重
     result_df.drop_duplicates(inplace=True)
     # 还是重复继续去重
@@ -125,7 +127,7 @@ def save_data(items):
 
 
 if __name__ == '__main__':
-    for op_date in date_generator('20060101', '20091231'):
+    for op_date in date_generator('20020107', '20201211'):
         result = read_data(op_date)
         save_data(result)
         # save_data(result)

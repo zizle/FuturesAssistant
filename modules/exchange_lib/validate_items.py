@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 
 class DailyItem(BaseModel):
-    date: str
+    date: int
     variety_en: str
     contract: str
     pre_settlement: float
@@ -23,7 +23,7 @@ class DailyItem(BaseModel):
 
 
 class RankItem(BaseModel):
-    date: str
+    date: int
     variety_en: str
     contract: str
     rank: int
@@ -37,8 +37,9 @@ class RankItem(BaseModel):
     short_position: int
     short_position_increase: int
 
+
 class ReceiptItem(BaseModel):
-    date: str
+    date: int
     variety_en: str
     warehouse: str
     receipt: int
@@ -62,6 +63,7 @@ class CZCEReceiptItem(ReceiptItem):
 
 class SHFEReceiptItem(ReceiptItem):
     pass
+
 
 class DCEReceiptItem(ReceiptItem):
     pass
