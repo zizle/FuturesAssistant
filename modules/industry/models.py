@@ -33,7 +33,6 @@ class SpotPriceItem(BaseModel):
     date: str
     variety_en: str
     price: float
-    increase: float
 
 
 class ModifySpotItem(SpotPriceItem):

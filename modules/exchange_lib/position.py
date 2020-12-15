@@ -134,7 +134,8 @@ async def all_variety_net_position(interval_days: int = Query(1)):
 
 # 查询当前日期的前一天数据(这里要求原数据库必须至少有一条数据,且日期间隔不能超过mysql最大连接数)
 def query_preday(query_date):
-    query_date = (query_date + timedelta(days=-1)).strftime("%Y%m%d")
+    pre_day = (datetime.fromtimestamp(query_date) + timedelta(days=-1)).strftime('%Y%m%d')
+    query_date = int(datetime.strptime(pre_day, '%Y%m%d').timestamp())
     with ExchangeLibDB() as ex_cursor:
         ex_cursor.execute(
             "SELECT variety_en,long_position,short_position,net_position "
@@ -142,7 +143,7 @@ def query_preday(query_date):
         )
         date_data = ex_cursor.fetchall()
         if not date_data:
-            return query_preday(datetime.strptime(query_date, "%Y%m%d"))
+            return query_preday(query_date)
         return date_data
 
 
@@ -150,7 +151,7 @@ def query_preday(query_date):
 async def generate_rank_position(option_day: str = Body(..., embed=True), user_token: str = Depends(oauth2_scheme)):
     # 验证日期格式
     try:
-        option_day = datetime.strptime(option_day, "%Y%m%d")
+        option_day = int(datetime.strptime(option_day, "%Y%m%d").timestamp())
     except Exception:
         return {"message": "日期格式有误!"}
     user_id, _ = decipher_user_token(user_token)
@@ -169,7 +170,6 @@ async def generate_rank_position(option_day: str = Body(..., embed=True), user_t
     pre_dict = {}
     for pre_item in pre_data:
         pre_dict[pre_item["variety_en"]] = pre_item
-    query_date = option_day.strftime("%Y%m%d")
     # 查询四大交易所数据并进行生成
     with ExchangeLibDB() as cursor:
         # 查询中金所品种持仓
@@ -179,7 +179,7 @@ async def generate_rank_position(option_day: str = Body(..., embed=True), user_t
             "from cffex_rank "
             "where date=%s and `rank`>=1 and `rank`<=20 "
             "group by variety_en;",
-            (query_date, )
+            (option_day, )
         )
         cffex_positions = cursor.fetchall()
         # 查询郑商所品种持仓
@@ -189,7 +189,7 @@ async def generate_rank_position(option_day: str = Body(..., embed=True), user_t
             "from czce_rank "
             "where date=%s and `rank`>=1 and `rank`<=20 and variety_en=contract "
             "group by variety_en;",
-            (query_date, )
+            (option_day, )
         )
         czce_positions = cursor.fetchall()
         # 查询大商所品种持仓
@@ -199,7 +199,7 @@ async def generate_rank_position(option_day: str = Body(..., embed=True), user_t
             "from dce_rank "
             "where date=%s and `rank`>=1 and `rank`<=20 "
             "group by variety_en;",
-            (query_date,)
+            (option_day,)
         )
         dce_positions = cursor.fetchall()
         # 查询上期所持仓
@@ -209,10 +209,9 @@ async def generate_rank_position(option_day: str = Body(..., embed=True), user_t
             "from shfe_rank "
             "where date=%s and `rank`>=1 and `rank`<=20 "
             "group by variety_en;",
-            (query_date,)
+            (option_day,)
         )
         shfe_positions = cursor.fetchall()
-
         # 合并以上查询的结果
         save_items = list(cffex_positions) + list(czce_positions) + list(dce_positions) + list(shfe_positions)
         # 转换数据类型
@@ -241,7 +240,7 @@ async def generate_rank_position(option_day: str = Body(..., embed=True), user_t
             "%(net_position)s,%(net_position_increase)s);",
             save_items
         )
-    return {"message": "保存{}排名持仓和数据成功!数量{}个".format(query_date, count)}
+    return {"message": "保存{}排名持仓和数据成功!数量{}个".format(datetime.fromtimestamp(option_day).strftime('%Y-%m-%d'), 0)}
 
 
 @position_router.get("/rank-position/all-variety/", summary='查询全品种近35天净持仓数据')
@@ -249,8 +248,8 @@ def get_rank_position(interval_days: int = Query(1)):
     # 获取当前日期及35天前
     current_date = datetime.today()
     pre_date = current_date + timedelta(days=-35)
-    start_date = pre_date.strftime('%Y%m%d')
-    end_date = current_date.strftime('%Y%m%d')
+    start_date = datetime.strptime(pre_date.strftime('%Y%m%d'), '%Y%m%d').timestamp()
+    end_date = datetime.strptime(current_date.strftime('%Y%m%d'), '%Y%m%d').timestamp()
     with ExchangeLibDB() as ex_cursor:
         ex_cursor.execute(
             "SELECT `date`,variety_en,net_position FROM zero_rank_position "
@@ -259,9 +258,11 @@ def get_rank_position(interval_days: int = Query(1)):
         )
         all_data = ex_cursor.fetchall()
     if not all_data:
-        return {"message": "查询全品种净持仓数据成功!", "data": [], 'header_keys': {}}
+        return {"message": "查询全品种净持仓数据成功!", "data": {}, 'header_keys': {}}
     # 整成pandas
     all_variety_df = DataFrame(all_data)
+    # date转为str
+    all_variety_df['date'] = all_variety_df['date'].apply(lambda x: datetime.fromtimestamp(x).strftime('%Y-%m-%d'))
     # 表透视
     all_variety_df = pivot_table(all_variety_df, index=["variety_en"], columns=["date"])
     # 处理品种顺序
@@ -298,8 +299,8 @@ def rank_net_position(variety: str = Query(0), day_count: int = Query(30)):
     # 获取日期
     current_date = datetime.today()
     pre_date = current_date + timedelta(days=-day_count)
-    start_date = pre_date.strftime('%Y%m%d')
-    end_date = current_date.strftime('%Y%m%d')
+    start_date = datetime.strptime(pre_date.strftime('%Y%m%d'), '%Y%m%d').timestamp()
+    end_date = datetime.strptime(current_date.strftime('%Y%m%d'), '%Y%m%d').timestamp()
     # 查询
     with ExchangeLibDB() as ex_cursor:
         ex_cursor.execute(
@@ -313,6 +314,8 @@ def rank_net_position(variety: str = Query(0), day_count: int = Query(30)):
         return {"message": "查询全品种净持仓数据成功!", "data": [], 'header_keys': {}}
     # 整成pandas
     all_variety_df = DataFrame(all_data)
+    # 转换日期
+    all_variety_df['date'] = all_variety_df['date'].apply(lambda x: datetime.fromtimestamp(x).strftime('%Y-%m-%d'))
     # 增加中文列
     all_variety_df["variety_zh"] = all_variety_df["variety_en"].apply(get_variety_zh)
     data_list = all_variety_df.to_dict(orient='records')

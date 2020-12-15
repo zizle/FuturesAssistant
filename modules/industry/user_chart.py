@@ -374,16 +374,16 @@ async def modify_chart_option(chart_id: int, option_item: ModifyChartOptionItem 
         left_y = y_axises[0]
         left_y['name'] = option_item.left_name
         if option_item.left_min:
-            left_y['min'] = int(option_item.left_min)
+            left_y['min'] = float(option_item.left_min)
         if option_item.left_max:
-            left_y['max'] = int(option_item.left_max)
+            left_y['max'] = float(option_item.left_max)
         if len(y_axises) > 1:  # 有右轴
             right_y = y_axises[1]
             right_y['name'] = option_item.right_name
             if option_item.right_min:
-                right_y['min'] = int(option_item.right_min)
+                right_y['min'] = float(option_item.right_min)
             if option_item.right_max:
-                right_y['max'] = int(option_item.right_max)
+                right_y['max'] = float(option_item.right_max)
         x_axises['date_length'] = option_item.date_length
         option_json['start_year'] = option_item.start_year if option_item.start_year else '0'
         option_json['end_year'] = option_item.end_year if option_item.end_year else '0'
