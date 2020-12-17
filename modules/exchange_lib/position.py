@@ -240,7 +240,7 @@ async def generate_rank_position(option_day: str = Body(..., embed=True), user_t
             "%(net_position)s,%(net_position_increase)s);",
             save_items
         )
-    return {"message": "保存{}排名持仓和数据成功!数量{}个".format(datetime.fromtimestamp(option_day).strftime('%Y-%m-%d'), 0)}
+    return {"message": "保存{}排名持仓和数据成功!数量{}个".format(datetime.fromtimestamp(option_day).strftime('%Y-%m-%d'), count)}
 
 
 @position_router.get("/rank-position/all-variety/", summary='查询全品种近35天净持仓数据')
