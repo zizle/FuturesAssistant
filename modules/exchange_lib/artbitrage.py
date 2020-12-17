@@ -232,9 +232,10 @@ async def season_contract_arbitrage(
 
 @arbitrage_router.post("/arbitrage/futures-spot/", summary="期现套利计算")
 async def arbitrage_variety(query_item: ArbitrageItem = Body(...)):
-    # 查询品种1所在的交易所
-    table1 = None
-    variety1 = ""
+    # variety1:现货 variety2: 期货
+    # 查询品种2所在的交易所
+    table2 = None
+    variety2 = ""
     # 根据当前日期计算出日期
     today = datetime.datetime.strptime(datetime.datetime.today().strftime('%Y%m%d'), '%Y%m%d')
 
@@ -243,39 +244,38 @@ async def arbitrage_variety(query_item: ArbitrageItem = Body(...)):
 
     with MySqlZ() as m_cursor:
         m_cursor.execute(
-            "SELECT id,variety_name,exchange_lib FROM basic_variety WHERE variety_en=%s;", (query_item.variety_1,)
+            "SELECT id,variety_name,exchange_lib FROM basic_variety WHERE variety_en=%s;", (query_item.variety_2,)
         )
-        variety_item_1 = m_cursor.fetchone()
-        if variety_item_1:
-            table1 = "{}_daily".format(variety_item_1["exchange_lib"])
-            variety1 = variety_item_1["variety_name"]
-    if not table1:
+        variety_item_2 = m_cursor.fetchone()
+        if variety_item_2:
+            table2 = "{}_daily".format(variety_item_2["exchange_lib"])
+            variety2 = variety_item_2["variety_name"]
+    if not table2:
         raise HTTPException(status_code=400, detail='variety error')
-
-    # 查询品种1的合约数据
-    query_sql1 = "SELECT `date`,close_price FROM {} WHERE contract=%s AND `date`>=%s AND `date`<=%s ORDER BY `date`;".format(
-        table1)
+    # 查询品种2的合约数据
+    query_sql2 = "SELECT `date`,close_price FROM {} WHERE contract=%s AND `date`>=%s AND `date`<=%s ORDER BY `date`;".format(
+        table2)
     with ExchangeLibDB() as ex_cursor:
-        # 查询品种1的合约数据
-        ex_cursor.execute(query_sql1, (query_item.contract_1, start_date, end_date))
-        contract_data1 = ex_cursor.fetchall()
-
+        # 查询品种2合约的数据
+        ex_cursor.execute(query_sql2, (query_item.contract_2, start_date, end_date))
+        contract_data2 = ex_cursor.fetchall()
+        # 查询现货数据
         ex_cursor.execute(
             "SELECT `date`,price FROM zero_spot_price "
             "WHERE variety_en=%s AND `date`>=%s AND `date`<=%s ORDER BY `date`;",
-            (query_item.variety_2, start_date, end_date)
+            (query_item.variety_1, start_date, end_date)
         )
         spot_prices = ex_cursor.fetchall()
-    if not spot_prices or not contract_data1:
+    if not spot_prices or not contract_data2:
         return {"message": "数据获取成功!", "data": [], "base_option": {'title': '目标无数据'}}
 
     # 处理数据
-    df1 = pd.DataFrame(contract_data1)
+    df1 = pd.DataFrame(spot_prices)
     df1.columns = ["date", "closePrice1"]
     # 转换date
     df1['date'] = df1['date'].apply(lambda x: datetime.datetime.fromtimestamp(x).strftime('%Y%m%d'))
 
-    df2 = pd.DataFrame(spot_prices)
+    df2 = pd.DataFrame(contract_data2)
     df2.columns = ["date", "closePrice2"]
     # 将现货的date字段转为date
     df2['date'] = df2['date'].apply(lambda x: datetime.datetime.fromtimestamp(x).strftime('%Y%m%d'))
@@ -283,6 +283,7 @@ async def arbitrage_variety(query_item: ArbitrageItem = Body(...)):
     data = data_frame_handler(df1, df2)
     # 图形需要的基础参数
     base_option = {
-        "title": "期货{}-现货{}".format(variety1, SPOT_VARIETY_ZH.get(query_item.variety_2, query_item.variety_2)),
+        "title": "现货{}-期货{}{}".format(SPOT_VARIETY_ZH.get(query_item.variety_1, query_item.variety_1),
+                                      variety2, query_item.contract_2),
     }
     return {"message": "数据获取成功!", "data": data, "base_option": base_option}
