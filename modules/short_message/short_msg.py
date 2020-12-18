@@ -56,6 +56,7 @@ async def get_short_message(
                     "</div>" \
                     "<div style='text-indent:30px;line-height:28px;'>{}</div>"
     for msg_item in short_messages:
+        msg_item['raw_content'] = msg_item['content']
         msg_item["content"] = content_model.format(msg_item["time_str"], msg_item["content"])
     return {"message": "查询成功", "short_messages": short_messages}
 
