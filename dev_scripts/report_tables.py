@@ -5,6 +5,7 @@
 """ 报告的文件信息 """
 
 from db.mysql_z import MySqlZ
+
 with MySqlZ() as cursor:
     # 研究报告记录表
     # date: 报告所属日期
@@ -17,7 +18,8 @@ with MySqlZ() as cursor:
         "`creator` INT(11) NOT NULL,"
         "`variety_en` VARCHAR(20) NOT NULL,"
         "`title` VARCHAR(128) NOT NULL,"
-        "`report_type` ENUM('daily','weekly','monthly','annual','special', 'others') NOT NULL DEFAULT 'others',"
+        "`report_type` ENUM('daily','weekly','monthly','annual','special', 'research','others') "
+        "NOT NULL DEFAULT 'others',"
         "`filepath` VARCHAR (512) NOT NULL,"
         "`is_active` BIT NOT NULL DEFAULT 1"
         ") DEFAULT CHARSET='utf8';"

@@ -19,8 +19,6 @@ from .validate_models import VarietyGroup, VarietyGroupCN, ExchangeLib, Exchange
 
 variety_router = APIRouter()
 
-FINANCE = {"IF": "沪深300", "IC": "中证500", "IH": "上证50", "TS": "2年国债", "TF": "5年国债", "T": "10年国债"}
-
 
 # 验证品种
 def verify_variety(variety_en: str):
@@ -43,7 +41,29 @@ def filter_cffex_real(variety_item):
     return True
 
 
-# 由于系统首次设计把金融品种分为股指，国债，宏观等品种与交易所不符合，所以出现了这个API
+@variety_router.get("/variety-en-sorted/", summary='获取以交易代码排序的所有品种')
+async def variety_en_sorted(is_real: int = Query(2, le=2, ge=0)):
+    with MySqlZ() as cursor:
+        cursor.execute(
+            "SELECT `variety_name`,`variety_en`,`group_name`, `exchange_lib` "
+            "FROM `basic_variety` "
+            "WHERE `is_active`=1 "
+            "ORDER BY `variety_en`;",
+        )
+        all_varieties = cursor.fetchall()
+    if is_real == 1:
+        all_varieties = list(filter(filter_exchange_others, all_varieties))
+    elif is_real == 2:
+        all_varieties = list(filter(filter_cffex_real, all_varieties))
+    else:
+        pass
+    for variety_item in all_varieties:
+        variety_item['exchange_name'] = ExchangeLibCN[variety_item['exchange_lib']]
+        variety_item['group_name'] = VarietyGroupCN[variety_item['group_name']]
+    return {"message": "查询品种信息成功!", "varieties": all_varieties}
+
+
+# 由于系统首次设计把金融品种分为股指，国债，宏观等品种与交易所不符合，所以出现了is_real参数
 @variety_router.get("/variety/all/", summary="获取所有分组及旗下的品种")
 async def basic_variety_all(is_real: int = Query(2, le=2, ge=0)):
     # is_real == 0 不做过滤

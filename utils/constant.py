@@ -239,5 +239,7 @@ REPORT_TYPES = {
     "weekly": "周度报告",
     "monthly": "月季报告",
     "annual": "年度报告",
+    "special": "专题报告",
+    "research": "调研报告",
     "others": "其他"
 }

@@ -52,7 +52,7 @@ async def create_report(
     if not user_id:
         raise HTTPException(status_code=401, detail="Unknown User")
     # 验证report_type:
-    if report_type not in ["daily", "weekly", "monthly", "annual", "special", "others"]:
+    if report_type not in ["daily", "weekly", "monthly", "annual", "special", 'research', "others"]:
         raise HTTPException(status_code=400, detail="Unknown Report Type")
     # 创建保存的文件夹
     date_folder = date[:7]  # 以月为单位保存
