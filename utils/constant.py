@@ -10,8 +10,10 @@ VARIETY_CODES_ALL = [
     'WH', 'Y', 'ZC', 'ZN']
 
 # 研究文件的类型
-REPORT_TYPES = {'other': 0, 'daily': 1, 'weekly': 2, 'monthly': 3, 'annual': 4, 'special': 5, 'research': 6,
-                't_disk': 7}
+REPORT_TYPES = {'others': 0, 'daily': 1, 'weekly': 2, 'monthly': 3, 'annual': 4, 'special': 5, 'research': 6,
+                't_disk': 7,
+                0: '其他', 1: '收盘日评', 2: '周度报告', 3: '月度报告', 4: '年度报告', 5: '专题报告', 6: '调研报告',
+                7: '技术解盘'}
 
 # 所有品种对应的中文名
 VARIETY_ZH = {
@@ -22,6 +24,7 @@ VARIETY_ZH = {
     'CS': '玉米淀粉',
     'EB': '苯乙烯',
     'EG': '乙二醇',
+    'FB': '纤维板',
     'GP': '股指',
     'GZ': '国债',
     'HG': '宏观',
@@ -86,6 +89,7 @@ VARIETY_ZH = {
     'WB': '外汇',
     'WR': '线材',
     'ZN': '锌',
+    'OTHERS': '其他'
 }
 
 
@@ -238,12 +242,12 @@ VARIETY_EN = {
     '中质含硫原油': 'SC',
 }
 
-REPORT_TYPES = {
-    "daily": "每日报告",
-    "weekly": "周度报告",
-    "monthly": "月季报告",
-    "annual": "年度报告",
-    "special": "专题报告",
-    "research": "调研报告",
-    "others": "其他"
-}
+# REPORT_TYPES = {
+#     "daily": "每日报告",
+#     "weekly": "周度报告",
+#     "monthly": "月季报告",
+#     "annual": "年度报告",
+#     "special": "专题报告",
+#     "research": "调研报告",
+#     "others": "其他"
+# }
