@@ -9,7 +9,7 @@
 import datetime
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from db.mysql_z import ExchangeLibDB
 from utils.constant import VARIETY_ZH
 
@@ -28,7 +28,7 @@ def verify_date(date: str):
 
 # 1. 净持仓和权重指数周度涨跌数据
 @weekly_router.get('/position-weight-price/', summary='净持仓-权重指数周度涨跌')
-async def position_weight_price(date=Depends(verify_date)):
+async def position_weight_price(date=Depends(verify_date), exclude: str = Query(None)):
     this_monday = date + datetime.timedelta(days=-date.weekday())  # 本周一
     current_date = int(date.timestamp())  # 请求的日期
 
@@ -70,16 +70,19 @@ async def position_weight_price(date=Depends(verify_date)):
     # 计算权重价格涨跌幅度
     data_df['wp_increase'] = (data_df['c_price'] - data_df['l_price']) / data_df['l_price']
     # 得到上周日期和当周日期
-    l_date = datetime.datetime.fromtimestamp(data_df['l_date'][0]).strftime('%Y-%m-%d')
-    c_date = datetime.datetime.fromtimestamp(data_df['c_date'][0]).strftime('%Y-%m-%d')
+    l_date = datetime.datetime.fromtimestamp(data_df['l_date'][0]).strftime('%Y%m%d')
+    c_date = datetime.datetime.fromtimestamp(data_df['c_date'][0]).strftime('%Y%m%d')
     # 截取需要的数据
-    data_df = data_df[['variety_en', 'l_position', 'c_position', 'position_increase', 'wp_increase']]
+    data_df = data_df[['variety_en', 'l_position', 'c_position', 'position_increase', 'l_price', 'c_price', 'wp_increase']]
     # 选取不含inf和nan的行
     data_df = data_df[~data_df.isin([np.nan, np.inf]).any(1)]
     # 按持仓增减幅度降序
     data_df = data_df.sort_values(by='position_increase', ascending=False)
     # 去除指定品种
-    data_df = data_df[~data_df[['variety_en']].isin(['JR', 'RR']).any(1)]
+    if exclude:
+        exclude_variety = exclude.split('-')
+        data_df = data_df[~data_df[['variety_en']].isin(exclude_variety).any(1)]
+
     # 增加品种中文列
     data_df['variety_name'] = data_df['variety_en'].apply(lambda x: VARIETY_ZH.get(x, x))
     return {'last_date': l_date, 'current_date': c_date, 'data': data_df.to_dict(orient='records')}
