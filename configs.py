@@ -22,6 +22,7 @@ SYSTEM_EMAIL = "rdyj_fxjc@163.com"
 SYSTEM_EMAIL_AUTH = "LCAWXVQEVNEBBIRF"
 
 
+
 # 日志记录
 def logger_handler(app_dir, log_level):
     # 日志配置
