@@ -3,6 +3,7 @@
 # @Time  : 2020-11-19 08:11
 # @Author: zizle
 """ 自动分类报告并移动报告到指定位置 """
+
 import os
 import re
 import time
@@ -28,6 +29,7 @@ FILE_STORAGE = configs["FILE_STORAGE"]  # 系统文件夹
 APP_DIR = configs["APP_DIR"]
 
 params = configs["LOCAL_DB"]
+
 
 # 日志记录
 def logger_handler(app_dir, log_level):
@@ -132,7 +134,7 @@ def read_all_reports():
                 variety_en = MATCH_REG[match_str]
                 break
         if variety_en:
-            file_type = ""
+            file_type = None
             # 确定是周报还是日报
             for type_item in MATCH_TYPE:
                 if filename.find(type_item) != -1:
@@ -162,8 +164,8 @@ def add_report(files):
             title = re.sub(r'^\d-', '', title)  # 替换数字开头的文件名称
             variety_en = file_item["variety_en"].split(';')[0]
             file_source_date = datetime.datetime.strptime(file_item["create_time"], "%Y-%m-%d %H:%M:%S")
-            date_folder = file_source_date.strftime("%Y-%m")  # 以月为单位保存
-            filedate = file_source_date.strftime("%Y-%m-%d")
+            date_folder = file_source_date.strftime("%Y%m")  # 以月为单位保存
+            filedate = int((datetime.datetime.strptime(file_source_date.strftime("%Y-%m-%d"), "%Y-%m-%d")).timestamp())
             # 创建新文件所在路径
             save_folder = "REPORTS/{}/{}/{}/".format(variety_en, file_item["report_type"], date_folder)
             # 新名称
@@ -174,17 +176,22 @@ def add_report(files):
                 os.makedirs(report_folder)
             report_path = os.path.join(report_folder, filename)
             sql_path = os.path.join(save_folder, filename)
+            # print('create_time:', int(file_source_date.timestamp()))
+            # print('file_date:', filedate)
             # print(filepath)
             # print(report_path)
             # print(sql_path)
             cursor.execute(
-                "SELECT id,filepath FROM research_report WHERE filepath=%s;", (sql_path,)
+                "SELECT id,filepath FROM research_file WHERE filepath=%s;", (sql_path,)
             )
             if not cursor.fetchone():
+                create_time = int(file_source_date.timestamp())
                 cursor.execute(
-                    "INSERT INTO research_report (`date`,creator,variety_en,title,report_type,filepath) "
-                    "VALUES (%s,%s,%s,%s,%s,%s);",
-                    (filedate, 1, file_item["variety_en"], title, file_item["report_type"], sql_path)
+                    "INSERT INTO research_file (create_time,update_time,file_date,creator,variety_en,"
+                    "title,file_type,filepath) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s);",
+                    (create_time, create_time, filedate, 0, file_item["variety_en"],
+                     title, file_item["report_type"], sql_path)
                 )
                 shutil.move(filepath, report_path)  # 将文件移动到目标位置
                 logger.info("处理文件{}:{} 成功!".format(index + 1, file_item["relative_path"]))
