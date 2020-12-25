@@ -9,10 +9,12 @@ with MySqlZ() as cursor:
     # 短信通数据表
     cursor.execute(
         "CREATE TABLE IF NOT EXISTS `short_message` ("
-        "`id` INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,"
-        "`create_time` DATETIME NOT NULL DEFAULT NOW(),"
-        "`creator` INT(11) NOT NULL,"
-        "`content` VARCHAR(1024) NOT NULL,"
-        "`is_active` BIT NOT NULL DEFAULT 1"
+        "`id` INT NOT NULL PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',"
+        "`create_time` INT NOT NULL COMMENT '创建时间',"
+        "`update_time` INT NOT NULL COMMENT '更新时间',"
+        "`creator` INT NOT NULL COMMENT '创建者',"
+        "`content` VARCHAR(1024) NOT NULL COMMENT '内容',"
+        "`md5` VARCHAR(32) NOT NULL UNIQUE COMMENT '内容哈希',"
+        "`is_active` BIT NOT NULL DEFAULT 1 COMMENT '有效'"
         ") DEFAULT CHARSET='utf8';"
     )

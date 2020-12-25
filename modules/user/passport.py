@@ -656,29 +656,3 @@ async def reset_password_email(reset_item: ResetPasswordEmail):
         )
     return {"message": "密码重置成功!请登录.."}
 
-
-
-
-
-
-
-
-
-
-
-
-
-@passport_router.post("/login/file/", summary="测试接口,上传文件")
-async def login_file(
-        file_key: UploadFile = File(...),
-):
-    print(file_key.filename)
-    return {"message": "上传文件"}
-
-
-@passport_router.get("/token_login/", summary="使用token进行登录")
-async def login_status_keeping(
-        is_logged: bool = Depends(verify.is_user_logged_in),
-):
-    print("用户登录情况:", is_logged)
-    return {"message": "用户登录"}

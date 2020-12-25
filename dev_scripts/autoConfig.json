@@ -6,13 +6,13 @@
     "host": "localhost",
     "port": 3306,
     "user": "root",
-    "password": "ruida180912mysql",
+    "password": "mysql",
     "database": "futures_assistant"
   },
   "MATCH_TYPE": {
-    "日评": "daily",
-    "收评": "daily",
-    "周报": "weekly"
+    "日评": 1,
+    "收评": 1,
+    "周报": 2
   },
   "MATCH_REG": {
     "期指": "GP",
@@ -60,6 +60,7 @@
     "短纤": "PF",
     "纸浆": "SP",
     "热卷": "HC",
+    "热轧卷板": "HC",
     "螺纹钢": "RB",
     "铁矿石": "I",
     "尿素": "UR",
