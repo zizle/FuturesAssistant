@@ -78,7 +78,7 @@ async def get_advertisements(is_active: int = Query(1, ge=0, le=1)):
     with MySqlZ() as cursor:
         cursor.execute(
             "SELECT id,title,ad_type,image,filepath,web_url,content,note,is_active "
-            "FROM homepage_advertisement WHERE IF(%s=0,TRUE,is_active=%s);", (is_active, is_active)
+            "FROM homepage_advertisement WHERE IF(%s=0,TRUE,is_active=%s) ORDER BY id DESC;", (is_active, is_active)
         )
         advertisements = cursor.fetchall()
         return {"message": "查询成功!", "advertisements": advertisements}

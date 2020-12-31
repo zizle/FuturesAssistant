@@ -112,7 +112,7 @@ async def warehouse_receipts(
         receipt_statement = "SELECT id,warehouse_code,warehouse_name,variety,variety_en,`date`,receipt,increase " \
                             "FROM `delivery_warehouse_receipt` " \
                             "WHERE `variety_en`=%s AND `warehouse_code`=%s " \
-                            "ORDER BY `id` DESC " \
+                            "ORDER BY `date` DESC " \
                             "LIMIT 10;"
         variety_first = query_result[0]
         response_data['warehouse'] = variety_first['name']

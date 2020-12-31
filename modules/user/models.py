@@ -20,6 +20,8 @@ class JwtToken(BaseModel):
     show_username: str
     access_token: str
     token_type: str
+    machine_uuid: str
+    message: str
 
 
 class User(BaseModel):
@@ -30,9 +32,17 @@ class User(BaseModel):
     email: str
     role: str
     is_active: Optional[bool] = True
+    machine_uuid: str  # 用户get_user_in_db函数中返回的数据(注册中已单独字段返回)
 
 
-class UserInDB(User):
+class UserInDB(BaseModel):
+    id: int = None
+    user_code: str
+    username: str
+    phone: str
+    email: str
+    role: str
+    is_active: Optional[bool] = True
     password_hashed: str
 
 
@@ -82,3 +92,18 @@ class UserExtensionItem(BaseModel):
     """ 用户的拓展信息 """
     user_id: int
     wx_id: str
+
+
+class ModifyPasswordItem(BaseModel):
+    """ 用户修改密码 """
+    old_password: str
+    new_password: str
+    confirm_password: str
+
+
+class ResetPasswordEmail(BaseModel):
+    """ 通过邮箱重置密码 """
+    email_code: str
+    user_phone: str
+    new_password: str
+    confirm_password: str

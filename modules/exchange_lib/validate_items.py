@@ -6,9 +6,10 @@ from pydantic import BaseModel
 
 
 class DailyItem(BaseModel):
-    date: str
+    date: int
     variety_en: str
     contract: str
+    pre_settlement: float
     open_price: float
     highest: float
     lowest: float
@@ -18,10 +19,11 @@ class DailyItem(BaseModel):
     zd_2: float
     trade_volume: int
     empty_volume: int
+    increase_volume: int
 
 
 class RankItem(BaseModel):
-    date: str
+    date: int
     variety_en: str
     contract: str
     rank: int
@@ -35,8 +37,9 @@ class RankItem(BaseModel):
     short_position: int
     short_position_increase: int
 
+
 class ReceiptItem(BaseModel):
-    date: str
+    date: int
     variety_en: str
     warehouse: str
     receipt: int
@@ -61,6 +64,7 @@ class CZCEReceiptItem(ReceiptItem):
 class SHFEReceiptItem(ReceiptItem):
     pass
 
+
 class DCEReceiptItem(ReceiptItem):
     pass
 
@@ -75,6 +79,7 @@ class SHFERankItem(RankItem):
 
 
 class CFFEXDailyItem(DailyItem):
+    trade_price: float
     trade_price: float
 
 

@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <title>用户的数据表</title>
+    <link rel="stylesheet" type="text/css" href="/static/CSS/scrollBar.css"/>
     <script type="text/javascript" src="/static/JS/jquery-1.7.2.min.js"></script>
     <script type="text/javascript" src="/static/JS/echarts.min.js"></script>
+    <script type="text/javascript" src="/static/JS/public.js"></script>
     <style>
         body{
             background-color: rgb(240,240,240);
@@ -46,6 +48,7 @@ function getSeriesLegend(seriesData, sourceData, sheetHeaders) {
             symbol: 'circle',
             name: sheetHeaders[optData.column_index],
             yAxisIndex: optData.axis_index,
+            connectNulls: true,
             data: sourceData.map(item=>{return parseFloat(item[optData.column_index])})
         };
         seriesArray.push(seriesOption);
@@ -106,6 +109,7 @@ function getSeasonSeriesLegend(seriesData, sourceData){
             symbol: 'circle',
             name: yearKey,
             yAxisIndex: 0,
+            connectNulls: true,
             data: yearData.map(item=>{return [item["column_0"], item[optData.column_index]]})
         };
         seriesArray.push(seriesOption);

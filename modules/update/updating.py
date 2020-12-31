@@ -45,6 +45,7 @@ async def check_version(
         "message": "版本更新查询成功!",
         "update_files": update_files,
         "update_needed": update_needed,
+        "update_force": True if update_json["FORCE"] else False,
         "last_version": lasted_version,
         "file_server": update_json["SERVER"],
         "update_detail": update_detail

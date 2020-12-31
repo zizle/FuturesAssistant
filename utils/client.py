@@ -4,7 +4,7 @@
 # @Author: zizle
 
 
-def encryption_uuid(raw_uuid):
+def encryption_uuid(raw_uuid, user_id):
     """ 加密UUID """
     secret_str = ""
     for c_str in raw_uuid:
@@ -14,7 +14,7 @@ def encryption_uuid(raw_uuid):
             secret_str += chr(ord(c_str) + 8).upper()
         else:
             secret_str += c_str
-    return secret_str
+    return "{}-{}".format(secret_str, "%04d" % user_id)
 
 
 def decipher_uuid(secret_uuid):

@@ -2,6 +2,7 @@
 # Author： zizle
 # Created:2020-05-13
 # ------------------------
+from itertools import groupby
 
 def strQ2B(ustring):
     """ 全角转半角 """
@@ -47,3 +48,6 @@ def split_zh_en(ustring):
     return zh_str.strip(), en_str.strip()
 
 
+def split_number_en(ustring):
+    """ 分离字母,数字"""
+    return [''.join(list(g)) for k, g in groupby(ustring, key=lambda x: x.isdigit())]

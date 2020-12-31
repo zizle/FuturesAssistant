@@ -22,6 +22,59 @@ async def verify_date(date: str = Query(...)):
     return date.strftime("%Y%m%d")
 
 
+@saver_router.post("/exchange/cffex/daily/", summary="保存中金所日交易数据")
+async def save_cffex_daily(
+        sources: List[CFFEXDailyItem] = Body(...),
+        current_date: str = Depends(verify_date)
+):
+    data_json = jsonable_encoder(sources)
+    save_sql = "INSERT IGNORE INTO `cffex_daily` " \
+               "(`date`,`variety_en`,`contract`,`pre_settlement`,`open_price`,`highest`,`lowest`," \
+               "`close_price`,`settlement`,`zd_1`,`zd_2`,`trade_volume`,`trade_price`,`empty_volume`," \
+               "`increase_volume`) " \
+               "VALUES (%(date)s,%(variety_en)s,%(contract)s,%(pre_settlement)s,%(open_price)s,%(highest)s,%(lowest)s," \
+               "%(close_price)s,%(settlement)s,%(zd_1)s,%(zd_2)s,%(trade_volume)s,%(trade_price)s,%(empty_volume)s," \
+               "%(increase_volume)s);"
+    with ExchangeLibDB() as cursor:
+        # 查询数据时间
+        cursor.execute("SELECT `id`, `date` FROM `cffex_daily` WHERE `date`=%s;" % current_date)
+        fetch_one = cursor.fetchone()
+        message = "{}中金所日交易数据已经存在,请不要重复保存!".format(current_date)
+        if not fetch_one:
+            count = cursor.executemany(save_sql, data_json)
+            message = "保存{}中金所日交易数据成功!\n新增数量:{}".format(current_date, count)
+    return {"message": message}
+
+
+@saver_router.post("/exchange/cffex/rank/", summary="保存中金所日持仓排名数据")
+async def save_cffex_rank(
+        sources: List[CFFEXRankItem] = Body(...),
+        current_date: str = Depends(verify_date)
+):
+    data_json = jsonable_encoder(sources)
+
+    save_sql = "INSERT INTO `cffex_rank` " \
+               "(`date`,`variety_en`,`contract`,`rank`," \
+               "`trade_company`,`trade`,`trade_increase`," \
+               "`long_position_company`,`long_position`,`long_position_increase`," \
+               "`short_position_company`,`short_position`,`short_position_increase`) " \
+               "VALUES (%(date)s,%(variety_en)s,%(contract)s,%(rank)s," \
+               "%(trade_company)s,%(trade)s,%(trade_increase)s," \
+               "%(long_position_company)s,%(long_position)s,%(long_position_increase)s," \
+               "%(short_position_company)s,%(short_position)s,%(short_position_increase)s);"
+    with ExchangeLibDB() as cursor:
+        # 查询数据时间
+        cursor.execute("SELECT `id`, `date` FROM `cffex_rank` WHERE `date`=%s;" % current_date)
+        fetch_one = cursor.fetchone()
+        message = "{}中金所日持仓排名数据已经存在,请不要重复保存!".format(current_date)
+        if not fetch_one:
+            count = cursor.executemany(save_sql, data_json)
+            message = "保存{}中金所日持仓排名数据成功!\n新增数量:{}".format(current_date, count)
+    return {"message": message}
+
+
+
+
 @saver_router.post("/exchange/czce/daily/", summary="保存郑商所日交易数据")
 async def save_czce_daily(
         sources: List[CZCEDailyItem] = Body(...),
@@ -167,56 +220,6 @@ async def save_shfe_receipt(
         if not fetch_one:
             count = cursor.executemany(save_sql, data_json)
             message = "保存{}上期所仓单日报数据成功!\n新增数量:{}".format(current_date, count)
-    return {"message": message}
-
-
-@saver_router.post("/exchange/cffex/daily/", summary="保存中金所日交易数据")
-async def save_cffex_daily(
-        sources: List[CFFEXDailyItem] = Body(...),
-        current_date: str = Depends(verify_date)
-):
-    data_json = jsonable_encoder(sources)
-
-    save_sql = "INSERT INTO `cffex_daily` " \
-               "(`date`,`variety_en`,`contract`,`open_price`,`highest`,`lowest`," \
-               "`close_price`,`settlement`,`zd_1`,`zd_2`,`trade_volume`,`empty_volume`,`trade_price`) " \
-               "VALUES (%(date)s,%(variety_en)s,%(contract)s,%(open_price)s,%(highest)s,%(lowest)s," \
-               "%(close_price)s,%(settlement)s,%(zd_1)s,%(zd_2)s,%(trade_volume)s,%(empty_volume)s,%(trade_price)s);"
-    with ExchangeLibDB() as cursor:
-        # 查询数据时间
-        cursor.execute("SELECT `id`, `date` FROM `cffex_daily` WHERE `date`=%s;" % current_date)
-        fetch_one = cursor.fetchone()
-        message = "{}中金所日交易数据已经存在,请不要重复保存!".format(current_date)
-        if not fetch_one:
-            count = cursor.executemany(save_sql, data_json)
-            message = "保存{}中金所日交易数据成功!\n新增数量:{}".format(current_date, count)
-    return {"message": message}
-
-
-@saver_router.post("/exchange/cffex/rank/", summary="保存中金所日持仓排名数据")
-async def save_cffex_rank(
-        sources: List[CFFEXRankItem] = Body(...),
-        current_date: str = Depends(verify_date)
-):
-    data_json = jsonable_encoder(sources)
-
-    save_sql = "INSERT INTO `cffex_rank` " \
-               "(`date`,`variety_en`,`contract`,`rank`," \
-               "`trade_company`,`trade`,`trade_increase`," \
-               "`long_position_company`,`long_position`,`long_position_increase`," \
-               "`short_position_company`,`short_position`,`short_position_increase`) " \
-               "VALUES (%(date)s,%(variety_en)s,%(contract)s,%(rank)s," \
-               "%(trade_company)s,%(trade)s,%(trade_increase)s," \
-               "%(long_position_company)s,%(long_position)s,%(long_position_increase)s," \
-               "%(short_position_company)s,%(short_position)s,%(short_position_increase)s);"
-    with ExchangeLibDB() as cursor:
-        # 查询数据时间
-        cursor.execute("SELECT `id`, `date` FROM `cffex_rank` WHERE `date`=%s;" % current_date)
-        fetch_one = cursor.fetchone()
-        message = "{}中金所日持仓排名数据已经存在,请不要重复保存!".format(current_date)
-        if not fetch_one:
-            count = cursor.executemany(save_sql, data_json)
-            message = "保存{}中金所日持仓排名数据成功!\n新增数量:{}".format(current_date, count)
     return {"message": message}
 
 

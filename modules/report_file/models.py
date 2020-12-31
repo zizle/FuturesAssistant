@@ -17,5 +17,13 @@ class ReportFileItem(BaseModel):
     """ 报告文件的文件信息 """
     date: str
     relative_varieties: str
-    report_type: str
+    report_type: int
     rename_text: str
+
+
+class ModifyReportInfo(BaseModel):
+    file_date: str
+    variety_en: str
+    title: str
+    file_type: int
+    is_active: int

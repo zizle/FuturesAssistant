@@ -8,7 +8,7 @@ API-1: 保存一个图形的配置
 API-2: 一张表内的所有图形(模板渲染)
 API-3: 单个图形的配置和作图数据
 API-4: 单个品种的所有图形列表(模板渲染/JSON)
-API-5: 获取单个图形的基本信息(不是配置信息)
+API-5: 获取单个图形的基本信息(含基本配置信息)
 API-6: 修改单个图形的解读描述
 API-7: 交换两个图形的排序后缀suffix
 API-8: 修改图形主页显示与品种也显示与否
@@ -26,7 +26,7 @@ from utils.verify import oauth2_scheme, decipher_user_token
 from utils.encryptor import generate_chart_option_filepath
 from db.mysql_z import MySqlZ, VarietySheetDB
 from configs import FILE_STORAGE, logger
-from .models import ChartOption, SwapSuffixItem
+from .models import ChartOption, SwapSuffixItem, ModifyChartOptionItem
 
 chart_router = APIRouter()
 
@@ -157,6 +157,16 @@ def get_season_chart_source(source_df):
     return target_values
 
 
+def replace_zero_to_middle_line(data_str):
+    """ 替换数据中的0为中横线 """
+    try:
+        value = float(data_str)  # 转为float,可检测0或0.00或0.000等字符串
+    except Exception:
+        return '-'
+    else:
+        return '-' if value == 0 else data_str
+
+
 def sheet_data_handler(base_option, source_dataframe):
     """ 根据图形配置处理表格的数据 """
     chart_type = base_option["chart_category"]
@@ -181,7 +191,8 @@ def sheet_data_handler(base_option, source_dataframe):
         column_index = series_item["column_index"]
         contain_zero = series_item["contain_zero"]
         if not contain_zero:  # 数据不含0,去0处理
-            values_df = values_df[values_df[column_index] != "0"]
+            values_df[column_index] = values_df[column_index].apply(replace_zero_to_middle_line)
+            # values_df = values_df[values_df[column_index] != "0"]
     values_df = values_df.sort_values(by="column_0")  # 最后进行数据从小到大的时间排序
     # table_show_df.reset_index(inplace=True)  # 重置索引,让排序生效(赋予row正确的值。可不操作,转为json后,索引无用处了)
     #
@@ -293,30 +304,7 @@ async def variety_chart(
         return {"message": "获取图形信息成功!", "data": charts}
 
 
-@chart_router.get("/chart/{chart_id}/", summary="获取图形的基本信息")
-async def chart_base_info(chart_id: int):
-    with MySqlZ() as cursor:
-        cursor.execute(
-            "SELECT title,variety_en,decipherment,suffix "
-            "FROM industry_user_chart WHERE id=%s;", (chart_id,)
-        )
-        chart = cursor.fetchone()
-
-    return {"message": "查询成功!", "data": chart}
-
-
-@chart_router.put("/chart-decipherment/{chart_id}/", summary="修改图形的解读信息")
-async def chart_decipherment(
-        chart_id: int,
-        decipherment: str = Body(..., embed=True)
-):
-    with MySqlZ() as cursor:
-        cursor.execute(
-            "UPDATE industry_user_chart SET decipherment=%s WHERE id=%s;", (decipherment, chart_id)
-        )
-    return {"message": "修改成功!"}
-
-
+# 本API必须置于.put('/chart/{chart_id}/')之前,否则`suffix-swap`先被匹配为错误的chart_id而无法执行
 @chart_router.put("/chart/suffix-swap/", summary="交换图形排序后缀")
 async def swap_chart_suffix(
         swap_item: SwapSuffixItem = Body(...)
@@ -333,22 +321,119 @@ async def swap_chart_suffix(
     return {"message": "交换排序成功!", "swap_row": swap_item.swap_row}
 
 
+@chart_router.get("/chart/{chart_id}/", summary="获取图形的基本信息")
+async def chart_base_info(chart_id: int):
+    with MySqlZ() as cursor:
+        cursor.execute(
+            "SELECT title,variety_en,option_file,decipherment,suffix "
+            "FROM industry_user_chart WHERE id=%s;", (chart_id,)
+        )
+        chart = cursor.fetchone()
+    if chart:
+        # 读取图形的配置信息
+        option_filepath = os.path.join(FILE_STORAGE, chart["option_file"])
+        with open(option_filepath, 'r', encoding='utf8') as fop:
+            chart_options = json.load(fop)
+
+        # 左轴配置
+        y_axises = chart_options["y_axis"]
+        x_axises = chart_options["x_axis"]
+        left_axis = y_axises[0]
+        # 左轴
+        chart["left_axis"] = {
+            "name": left_axis.get("name", ""), "min": left_axis.get("min", ''), "max": left_axis.get("max", '')
+        }
+        # 右轴
+        if len(y_axises) > 1:
+            right_axis = y_axises[1]
+            chart["right_axis"] = {
+                "name": right_axis.get("name", ""), "min": right_axis.get("min", ''), "max": right_axis.get("max", '')
+            }
+        # 起始时间
+        chart["date_length"] = x_axises["date_length"]
+        chart["start_year"] = chart_options["start_year"]
+        chart["end_year"] = chart_options["end_year"]
+
+    return {"message": "查询成功!", "data": chart}
+
+
+@chart_router.put("/chart/{chart_id}/", summary="修改图形的基本配置")
+async def modify_chart_option(chart_id: int, option_item: ModifyChartOptionItem = Body(...)):
+    with MySqlZ() as m_cursor:
+        m_cursor.execute("SELECT id,option_file FROM industry_user_chart WHERE id=%s;", (chart_id,))
+        chart_obj = m_cursor.fetchone()
+        if not chart_obj:
+            raise HTTPException(status_code=400, detail='Chart Not Found')
+        option_filepath = os.path.join(FILE_STORAGE, chart_obj["option_file"])
+        with open(option_filepath, 'r', encoding='utf8') as fp:
+            option_json = json.load(fp)
+        # 修改文件option
+        y_axises = option_json['y_axis']
+        x_axises = option_json['x_axis']
+        # 左轴数据
+        left_y = y_axises[0]
+        left_y['name'] = option_item.left_name
+        if option_item.left_min:
+            left_y['min'] = float(option_item.left_min)
+        if option_item.left_max:
+            left_y['max'] = float(option_item.left_max)
+        if len(y_axises) > 1:  # 有右轴
+            right_y = y_axises[1]
+            right_y['name'] = option_item.right_name
+            if option_item.right_min:
+                right_y['min'] = float(option_item.right_min)
+            if option_item.right_max:
+                right_y['max'] = float(option_item.right_max)
+        x_axises['date_length'] = option_item.date_length
+        option_json['start_year'] = option_item.start_year if option_item.start_year else '0'
+        option_json['end_year'] = option_item.end_year if option_item.end_year else '0'
+        # 写入数据库(修改解说)
+        m_cursor.execute(
+            "UPDATE industry_user_chart SET decipherment=%s WHERE id=%s;", (option_item.decipherment, chart_id)
+        )
+        # 修改配置
+        with open(option_filepath, 'w', encoding='utf-8') as fp:
+            json.dump(option_json, fp, indent=4)
+    return {"message": "修改成功!"}
+
+
+# 功能在.put("/chart/{chart_id}/")也有,本API同时保留
+@chart_router.put("/chart-decipherment/{chart_id}/", summary="修改图形的解读信息")
+async def chart_decipherment(
+        chart_id: int,
+        decipherment: str = Body(..., embed=True)
+):
+    with MySqlZ() as cursor:
+        cursor.execute(
+            "UPDATE industry_user_chart SET decipherment=%s WHERE id=%s;", (decipherment, chart_id)
+        )
+    return {"message": "修改成功!"}
+
+
 @chart_router.put("/chart/{chart_id}/display/", summary="修改图形在主页或品种页显示或仅自己可见")
 async def chart_display(
         chart_id: int,
         user_token=Depends(oauth2_scheme),
-        is_principal: int = Query(0, ge=0, le=2),
-        is_petit: int = Query(0, ge=0, le=1),
-        is_private: int = Query(0, ge=0, le=1)
+        is_principal: int = Query(None, ge=0, le=2),
+        is_petit: int = Query(None, ge=0, le=1),
+        is_private: int = Query(None, ge=0, le=1)
 ):
     user_id, _ = decipher_user_token(user_token)
     if not user_id:
         raise HTTPException(status_code=401, detail="UnKnown User.")
+
     with MySqlZ() as cursor:
-        cursor.execute(
-            "UPDATE industry_user_chart SET is_principal=%s,is_petit=%s,is_private=%s WHERE id=%s;",
-            (str(is_principal), is_petit, is_private, chart_id)
-        )
+        if is_principal is not None and is_petit is None and is_private is None:
+            update_sql = "UPDATE industry_user_chart SET is_principal=%s WHERE id=%s;"
+            cursor.execute(update_sql, (str(is_principal), chart_id))
+        elif is_petit is not None and is_principal is None and is_private is None:
+            update_sql = "UPDATE industry_user_chart SET is_petit=%s WHERE id=%s;"
+            cursor.execute(update_sql, (is_petit, chart_id))
+        elif is_private is not None and is_principal is None and is_petit is None:
+            update_sql = "UPDATE industry_user_chart SET is_private=%s WHERE id=%s;"
+            cursor.execute(update_sql, (is_private, chart_id))
+        else:
+            pass
     return {"message": "设置成功!"}
 
 

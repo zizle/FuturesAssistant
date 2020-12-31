@@ -14,18 +14,15 @@ client_router = APIRouter()
 
 @client_router.post("/client/", summary="添加一个客户端")
 async def add_new_client(client: ClientItem = Body(...)):
-    client.machine_uuid = encryption_uuid(client.machine_uuid)
+    # 初始模糊增加客户端记录(用户更换电脑授权登录权限时需用到)
+    client.machine_uuid = encryption_uuid(client.machine_uuid, 0)
     client_dict = jsonable_encoder(client)
     with MySqlZ() as cursor:
-        cursor.execute("SELECT `id`,`client_name` FROM `basic_client` WHERE `machine_uuid`=%s;", client.machine_uuid)
-        client_info = cursor.fetchone()
-        if not client_info:  # 客户端不存在
-            cursor.execute(
-                "INSERT INTO `basic_client` "
-                "(client_name,machine_uuid,is_manager) "
-                "VALUES (%(client_name)s,%(machine_uuid)s,%(is_manager)s);",
-                client_dict
-            )
+        cursor.execute(
+            "INSERT IGNORE INTO basic_client (client_name,machine_uuid,is_manager) "
+            "VALUES (%(client_name)s,%(machine_uuid)s,%(is_manager)s);",
+            client_dict
+        )
     return {"message": "新增客户端成功!", "client_uuid": client.machine_uuid}
 
 

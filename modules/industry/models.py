@@ -32,8 +32,7 @@ class SpotPriceItem(BaseModel):
     """ 现货报价数据模型 """
     date: str
     variety_en: str
-    spot_price: float
-    price_increase: float
+    price: float
 
 
 class ModifySpotItem(SpotPriceItem):
@@ -48,5 +47,16 @@ class UpdateFolderItem(BaseModel):
     group_id: int
 
 
+class ModifyChartOptionItem(BaseModel):
+    left_name: str
+    left_min: str
+    left_max: str
+    right_name: str
+    right_min: str
+    right_max: str
+    date_length: int
+    start_year: str
+    end_year: str
+    decipherment: str
 
 

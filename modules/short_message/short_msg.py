@@ -17,45 +17,39 @@ from db.mysql_z import MySqlZ
 shortmsg_router = APIRouter()
 
 
-def verify_datetime(start_time: str = Query(...)):
-    """ 验证日期时间 """
-    try:
-        current_datetime = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%S")
-    except Exception:
-        current_datetime = datetime.now()
-    return current_datetime
-
-
 @shortmsg_router.post("/short-message/", summary="上传短信通")
 async def save_short_message():
     return {"该API待开发"}
 
 
 @shortmsg_router.get("/short-message/", summary="获取短信通信息")
-async def get_short_message(
-        start_time: datetime = Depends(verify_datetime)
-):
-    end_time = start_time + timedelta(days=1)
-    end_time = end_time.strftime("%Y-%m-%dT00:00:00")
-    start_time = start_time.strftime("%Y-%m-%dT%H:%M:%S")
+async def get_short_message(start_time: str = Query(...)):
+    # 验证日期
+    try:
+        s_time = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%S")
+    except ValueError:
+        s_time = datetime.now()
+    end_time = datetime.strptime(s_time.strftime('%Y%m%d'), '%Y%m%d') + timedelta(days=1)
+    # 起始和结束
+    start_time = int(s_time.timestamp())
+    end_time = int(end_time.timestamp())
     # 查询数据
     with MySqlZ() as cursor:
         cursor.execute(
-            "SELECT id, DATE_FORMAT(create_time,'%%Y-%%m-%%dT%%H:%%i:%%S') AS create_time,"
-            "DATE_FORMAT(create_time,'%%H:%%i') AS time_str,"
-            "creator,content "
+            "SELECT id, create_time,creator,content "
             "FROM short_message "
-            "WHERE DATE_FORMAT(create_time, '%%Y-%%m-%%dT%%H:%%i:%%S') > %s AND "
-            "DATE_FORMAT(create_time, '%%Y-%%m-%%dT%%H:%%i:%%S') < %s "
+            "WHERE create_time > %s AND create_time < %s "
             "ORDER BY create_time ASC;",
             (start_time, end_time)
         )
         short_messages = cursor.fetchall()
-    content_model = "<div style='text-indent:30px;line-height:25px;font-size:13px;'>" \
-                    "<span style='font-size:15px;font-weight:bold;color:rgb(233,20,20);'>{}</span>" \
-                    "{}</div>"
+    content_model = "<div style='text-indent:30px;line-height:28px;'>{}</div>"
     for msg_item in short_messages:
-        msg_item["content"] = content_model.format(msg_item["time_str"], msg_item["content"])
+        create_time = msg_item['create_time']
+        msg_item['create_time'] = datetime.fromtimestamp(create_time).strftime('%Y-%m-%dT%H:%M:%S')
+        msg_item['time_str'] = datetime.fromtimestamp(create_time).strftime('%H:%M')
+        msg_item['raw_content'] = msg_item['content']
+        msg_item["content"] = content_model.format(msg_item["content"])
     return {"message": "查询成功", "short_messages": short_messages}
 
 
@@ -115,12 +109,14 @@ async def modify_short_message(
 async def get_instant_message(count: int = Query(5, ge=1, le=50)):
     with MySqlZ() as cursor:
         cursor.execute(
-            "SELECT id, DATE_FORMAT(create_time,'%%Y-%%m-%%dT%%H:%%i:%%S') AS create_time,"
-            "DATE_FORMAT(create_time,'%%H:%%i') AS time_str,"
-            "creator,content "
+            "SELECT id, create_time,creator,content "
             "FROM short_message "
             "ORDER BY id DESC LIMIT %s;",
             (count, )
         )
         short_messages = cursor.fetchall()
+    for msg_item in short_messages:
+        create_time = msg_item['create_time']
+        msg_item['create_time'] = datetime.fromtimestamp(create_time).strftime('%Y-%m-%dT%H:%M:%S')
+        msg_item['time_str'] = datetime.fromtimestamp(create_time).strftime('%H:%M')
     return {"message": "获取最新短信通成功!", "short_messages": short_messages}

@@ -7,7 +7,9 @@
 from fastapi import APIRouter
 from .wechat_file import wechat_file_router
 from .report import report_router
+from .technical_disk import t_disk_router
 
 report_file_router = APIRouter()
 report_file_router.include_router(wechat_file_router)
 report_file_router.include_router(report_router)
+report_file_router.include_router(t_disk_router)

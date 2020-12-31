@@ -30,11 +30,13 @@ async def get_phone(phone: str = Query(..., min_length = 11, max_length = 11, re
 
 @user_view_router.put("/user/online/", summary="用户在线时间累计")
 async def update_user_online(
-        machine_uuid: str = Query(..., min_length = 36, max_length = 36),
+        machine_uuid: str = Query(..., min_length=36, max_length=42),
         token: str = Depends(oauth2_scheme)
 ):
     user_id, user_code = decipher_user_token(token)
     today_str = datetime.today().strftime("%Y-%m-%d")
+    # 处理uuid(由于2020.11.23修改的客户端重复问题,用户自动登录后客户端为保存machine_uuid只能由此处理)兼容旧版
+    machine_uuid = "{}-{}".format(machine_uuid.rsplit('-', 1)[0], "%04d" % (user_id if user_id else 0))
     with MySqlZ() as cursor:
         cursor.execute("SELECT `id`,machine_uuid FROM `basic_client` WHERE machine_uuid=%s;", machine_uuid)
         client_info = cursor.fetchone()
@@ -55,7 +57,7 @@ async def update_user_online(
                     "INSERT INTO basic_client_online (client_id,online_date,total_online) "
                     "VALUES (%s,%s,%s);", (client_info["id"], today_str, 2)
                 )
-        if user_id:
+        if user_id:  # 用户存在,查询今日是否有记录,有则追加更新,无则新建一条2分钟的记录
             cursor.execute(
                 "SELECT id,online_date FROM user_user_online WHERE online_date=%s AND user_id=%s;",
                 (today_str, user_id)
@@ -97,6 +99,34 @@ async def all_users(role: UserRole = Query(...), user_token: str = Depends(oauth
     return {"message": "查询用户成功!", "users": all_user, "query_role": user_info["role"]}
 
 
+@user_view_router.get("/user/info/", summary="获取用户的基本信息")  # 个人中心修改密码
+async def get_user_information(user_token: str = Depends(oauth2_scheme)):
+    user_id, user_code = decipher_user_token(user_token)
+    user_code = user_code if user_code else "未知"
+    today = datetime.today().strftime("%Y-%m-%d")
+    # 查询用户的在线时长
+    with MySqlZ() as cursor:
+        cursor.execute("SELECT user_id,SUM(total_online) AS total_online FROM user_user_online "
+                       "WHERE user_id=%s;", (user_id, ))
+        online_obj = cursor.fetchone()
+        cursor.execute("SELECT user_id,total_online FROM user_user_online "
+                       "WHERE user_id=%s AND online_date=%s;", (user_id, today))
+        today_online_obj = cursor.fetchone()
+    if not online_obj:
+        total_online = 0
+    else:
+        total_online = int(online_obj["total_online"])
+    if not today_online_obj:
+        today_online = 0
+    else:
+        today_online = today_online_obj["total_online"]
+    return {"message": "查询成功!",
+            "user": {"user_code": user_code,
+                     "total_online": total_online,
+                     "today_online": today_online}
+            }
+
+
 @user_view_router.put("/user/info/", summary="用户的基本信息修改")
 async def modify_user_information(
         operator_token: str = Depends(oauth2_scheme),
@@ -126,50 +156,50 @@ async def modify_user_information(
     else:  # 用户自己修改信息
         return {"message": "修改成功!"}
 
-
-@user_view_router.get("/user/extension/", summary="用户的拓展信息项")
-async def get_searcher_wxid(
-        user_type: str = Query('inner'),
-        phone: str = Query('')
-):
-    if user_type not in ["inner", "normal"]:
-        return {"message": "用户拓展信息", "users": []}
-    if user_type == "inner":
-        query_statement = "SELECT usertb.id,usertb.phone,usertb.username,usertb.note," \
-                          "userextb.wx_id " \
-                          "FROM user_user AS usertb " \
-                          "LEFT JOIN user_user_extension AS userextb " \
-                          "ON usertb.id=userextb.user_id " \
-                          "WHERE usertb.role<>'normal' AND IF(%s='',TRUE,usertb.phone=%s);"
-    else:
-        query_statement = "SELECT usertb.id,usertb.phone,usertb.username,usertb.note," \
-                          "userextb.wx_id " \
-                          "FROM user_user AS usertb " \
-                          "LEFT JOIN user_user_extension AS userextb " \
-                          "ON usertb.id=userextb.user_id " \
-                          "WHERE usertb.role='normal' AND IF(%s='',TRUE,usertb.phone=%s);"
-
-    with MySqlZ() as cursor:
-        cursor.execute(query_statement, (phone, phone))
-        users = cursor.fetchall()
-
-    return {"message": "用户拓展信息", "users": users}
-
-
-@user_view_router.put("/user/extension/{user_id}/", summary="修改用户拓展信息")
-async def modify_user_extension(user_id: int, extension_item: UserExtensionItem = Body(...)):
-    with MySqlZ() as cursor:
-        cursor.execute("SELECT id,user_id FROM user_user_extension WHERE user_id=%s; ", (user_id, ))
-        exist = cursor.fetchone()
-        if exist:
-            cursor.execute(
-                "UPDATE user_user_extension SET wx_id=%(wx_id)s WHERE user_id=%(user_id)s;",
-                jsonable_encoder(extension_item)
-            )
-        else:
-            cursor.execute(
-                "INSERT INTO user_user_extension (user_id,wx_id) VALUES (%(user_id)s, %(wx_id)s);",
-                jsonable_encoder(extension_item)
-            )
-
-    return {"message": "修改成功"}
+#
+# @user_view_router.get("/user/extension/", summary="用户的拓展信息项")
+# async def get_searcher_wxid(
+#         user_type: str = Query('inner'),
+#         phone: str = Query('')
+# ):
+#     if user_type not in ["inner", "normal"]:
+#         return {"message": "用户拓展信息", "users": []}
+#     if user_type == "inner":
+#         query_statement = "SELECT usertb.id,usertb.phone,usertb.username,usertb.note," \
+#                           "userextb.wx_id " \
+#                           "FROM user_user AS usertb " \
+#                           "LEFT JOIN user_user_extension AS userextb " \
+#                           "ON usertb.id=userextb.user_id " \
+#                           "WHERE usertb.role<>'normal' AND IF(%s='',TRUE,usertb.phone=%s);"
+#     else:
+#         query_statement = "SELECT usertb.id,usertb.phone,usertb.username,usertb.note," \
+#                           "userextb.wx_id " \
+#                           "FROM user_user AS usertb " \
+#                           "LEFT JOIN user_user_extension AS userextb " \
+#                           "ON usertb.id=userextb.user_id " \
+#                           "WHERE usertb.role='normal' AND IF(%s='',TRUE,usertb.phone=%s);"
+#
+#     with MySqlZ() as cursor:
+#         cursor.execute(query_statement, (phone, phone))
+#         users = cursor.fetchall()
+#
+#     return {"message": "用户拓展信息", "users": users}
+#
+#
+# @user_view_router.put("/user/extension/{user_id}/", summary="修改用户拓展信息")
+# async def modify_user_extension(user_id: int, extension_item: UserExtensionItem = Body(...)):
+#     with MySqlZ() as cursor:
+#         cursor.execute("SELECT id,user_id FROM user_user_extension WHERE user_id=%s; ", (user_id, ))
+#         exist = cursor.fetchone()
+#         if exist:
+#             cursor.execute(
+#                 "UPDATE user_user_extension SET wx_id=%(wx_id)s WHERE user_id=%(user_id)s;",
+#                 jsonable_encoder(extension_item)
+#             )
+#         else:
+#             cursor.execute(
+#                 "INSERT INTO user_user_extension (user_id,wx_id) VALUES (%(user_id)s, %(wx_id)s);",
+#                 jsonable_encoder(extension_item)
+#             )
+#
+#     return {"message": "修改成功"}
