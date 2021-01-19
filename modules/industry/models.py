@@ -37,6 +37,7 @@ class SpotPriceItem(BaseModel):
 
 class ModifySpotItem(SpotPriceItem):
     id: int
+    increase: float
 
 
 class UpdateFolderItem(BaseModel):
