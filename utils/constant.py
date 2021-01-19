@@ -5,7 +5,7 @@
 
 VARIETY_CODES_ALL = [
     'A', 'AG', 'AL', 'AP', 'AU', 'B', 'BC', 'BU', 'C', 'CF', 'CJ', 'CS', 'CU', 'CY', 'EB', 'EG', 'FG', 'FU', 'HC', 'I', 'IC',
-    'IF', 'IH', 'J', 'JD', 'JM', 'JR', 'L', 'LR', 'LU', 'M', 'MA', 'NI', 'NR', 'OI', 'P', 'PB', 'PF', 'PG', 'PM', 'PP',
+    'IF', 'IH', 'J', 'JD', 'JM', 'JR', 'L', 'LH', 'LR', 'LU', 'M', 'MA', 'NI', 'NR', 'OI', 'P', 'PB', 'PF', 'PG', 'PM', 'PP',
     'RB', 'RI', 'RM', 'RR', 'RS', 'RU', 'SA', 'SF', 'SM', 'SN', 'SP', 'SR', 'SS', 'T', 'TA', 'TF', 'TS', 'UR', 'V',
     'WH', 'Y', 'ZC', 'ZN']
 
