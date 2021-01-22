@@ -252,5 +252,5 @@ async def create_variety_introduction(intro_file: UploadFile = Form(...),
 
 @variety_router.get('/variety/{variety_en}/intro/')  # 获取一个品种的介绍文件
 async def get_variety_introduction(variety_en: str = Depends(verify_variety)):
-    return {'message': '使用静态文件方式: static/VARIETY/Intro/{}_品种介绍.pdf 访问'}
+    return {'message': '使用静态文件方式: static/VARIETY/Intro/{}.pdf 访问'}
 
