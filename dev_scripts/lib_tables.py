@@ -14,7 +14,8 @@ with MySqlZ() as cursor:
         "`id` INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,"
         "`rate_timestamp` INT NOT NULL COMMENT '汇率日期',"
         "`rate_name` VARCHAR(16) NOT NULL COMMENT '汇率名称',"
-        "`rate` VARCHAR(16) NOT NULL DEFAULT '' COMMENT '汇率'"
+        "`rate` VARCHAR(16) NOT NULL DEFAULT '' COMMENT '汇率',"
+        "UNIQUE KEY `rate_timestamp`(`rate_timestamp`,`rate_name`)"
         ") DEFAULT CHARSET='utf8';"
     )
 
