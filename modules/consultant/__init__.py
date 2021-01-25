@@ -5,6 +5,8 @@
 
 from fastapi import APIRouter
 from .article import article_api
+from .strategy import strategy_api
 
 consult_router = APIRouter()
 consult_router.include_router(article_api, prefix='/article')
+consult_router.include_router(strategy_api, prefix='/strategy')

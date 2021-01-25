@@ -8,14 +8,16 @@ API-2: 获取单个分组下的品种
 API-3: 添加一个品种
 API-4:
 """
+import os
 import re
 from datetime import datetime, timedelta
 from collections import OrderedDict
-from fastapi import APIRouter, Query, Body, HTTPException, Depends
+from fastapi import APIRouter, Query, Body, HTTPException, Depends, UploadFile, Form
 from db.mysql_z import MySqlZ, ExchangeLibDB
 from db.redis_z import RedisZ
 from pymysql.err import IntegrityError, ProgrammingError
 from .validate_models import VarietyGroup, VarietyGroupCN, ExchangeLib, ExchangeLibCN, VarietyItem
+from configs import FILE_STORAGE
 
 variety_router = APIRouter()
 
@@ -226,3 +228,29 @@ async def variety_all_contract(variety_en: str = Depends(verify_variety)):
         else:
             contracts = eval(contracts)
     return {"message": "查询成功!", "contracts": contracts}
+
+
+@variety_router.post('/variety/{variety_en}/intro/')  # 创建一个品种的介绍文件
+async def create_variety_introduction(intro_file: UploadFile = Form(...),
+                                      variety_en: str = Depends(verify_variety)):
+    # 将上传的文件保存
+    name_text = variety_en
+    if variety_en in ['A', 'B']:
+        name_text = '黄大豆期货合约'
+    if variety_en in ['AG', 'AU']:
+        name_text = '贵金属期货合约'
+    if variety_en in ['CU', 'AL', 'ZN', 'PB', 'NI', 'SN']:
+        name_text = '有色金属期货合约'
+    filename = '{}.pdf'.format(name_text)
+    save_path = os.path.join(FILE_STORAGE, 'VARIETY/Intro/{}'.format(filename))
+    file_content = await intro_file.read()
+    with open(save_path, "wb") as fp:
+        fp.write(file_content)
+    await intro_file.close()
+    return {'message': '保存文件成功!'}
+
+
+@variety_router.get('/variety/{variety_en}/intro/')  # 获取一个品种的介绍文件
+async def get_variety_introduction(variety_en: str = Depends(verify_variety)):
+    return {'message': '使用静态文件方式: static/VARIETY/Intro/{}.pdf 访问'}
+

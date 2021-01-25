@@ -14,3 +14,9 @@ class ConsultArticleItem(BaseModel):
 class StrategyAddItem(BaseModel):
     user_token: str
     content: str
+
+
+class StrategyModifyItem(BaseModel):
+    user_token: str
+    content: str
+    strategy_id: int
