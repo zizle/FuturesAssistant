@@ -11,9 +11,9 @@ VARIETY_CODES_ALL = [
 
 # 研究文件的类型
 REPORT_TYPES = {'others': 0, 'daily': 1, 'weekly': 2, 'monthly': 3, 'annual': 4, 'special': 5, 'research': 6,
-                't_disk': 7,
+                't_disk': 7, 'invest': 8, 'hedge': 9,
                 0: '其他', 1: '收盘日评', 2: '周度报告', 3: '月度报告', 4: '年度报告', 5: '专题报告', 6: '调研报告',
-                7: '技术解盘'}
+                7: '技术解盘', 8: '投资方案', 9: '套保方案'}
 
 # 所有品种对应的中文名
 VARIETY_ZH = {
