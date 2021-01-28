@@ -10,6 +10,7 @@ API-4:
 """
 import os
 import re
+import hashlib
 from datetime import datetime, timedelta
 from collections import OrderedDict
 from fastapi import APIRouter, Query, Body, HTTPException, Depends, UploadFile, Form
@@ -230,27 +231,91 @@ async def variety_all_contract(variety_en: str = Depends(verify_variety)):
     return {"message": "查询成功!", "contracts": contracts}
 
 
-@variety_router.post('/variety/{variety_en}/intro/')  # 创建一个品种的介绍文件
+@variety_router.post('/variety/intro/')  # 创建一个品种的介绍文件
 async def create_variety_introduction(intro_file: UploadFile = Form(...),
-                                      variety_en: str = Depends(verify_variety)):
+                                      variety_en: str = Form(...),
+                                      variety_name: str = Form(..., max_length=10)):
     # 将上传的文件保存
     name_text = variety_en
-    if variety_en in ['A', 'B']:
-        name_text = '黄大豆期货合约'
-    if variety_en in ['AG', 'AU']:
-        name_text = '贵金属期货合约'
-    if variety_en in ['CU', 'AL', 'ZN', 'PB', 'NI', 'SN']:
-        name_text = '有色金属期货合约'
-    filename = '{}.pdf'.format(name_text)
+    # 根据品种名称和当前的时间戳生成保存的文件名称
+    filename = '{}{}.pdf'.format(name_text, str(int(datetime.now().timestamp())))
     save_path = os.path.join(FILE_STORAGE, 'VARIETY/Intro/{}'.format(filename))
-    file_content = await intro_file.read()
-    with open(save_path, "wb") as fp:
-        fp.write(file_content)
-    await intro_file.close()
-    return {'message': '保存文件成功!'}
+    sql_path = 'VARIETY/Intro/{}'.format(filename)
+    # 保存到数据库并保存文件
+    with MySqlZ() as cursor:
+        cursor.execute(
+            "SELECT variety_en,filepath FROM basic_variety_file WHERE `variety_en`=%s;",
+            (variety_en,)
+        )
+        file_obj = cursor.fetchone()
+        now_timestamp = int(datetime.now().timestamp())
+        if not file_obj:
+            # 新增并保存文件
+            cursor.execute(
+                "INSERT INTO basic_variety_file (create_time,update_time,variety_name,variety_en,filepath) "
+                "VALUES (%s,%s,%s,%s,%s);",
+                (now_timestamp, now_timestamp, variety_name, variety_en, sql_path)
+            )
+        else:
+            cursor.execute(
+                "UPDATE basic_variety_file SET update_time=%s,filepath=%s,variety_name=%s "
+                "WHERE variety_en=%s;", (now_timestamp, sql_path, variety_name, variety_en)
+            )
+            # 更新数据库后删除旧文件并保存新文件
+            old_filepath = os.path.join(FILE_STORAGE, file_obj['filepath'])
+            if os.path.exists(old_filepath) and os.path.isfile(old_filepath):
+                os.remove(old_filepath)
+        # 保存文件
+        file_content = await intro_file.read()
+        with open(save_path, "wb") as fp:
+            fp.write(file_content)
+        await intro_file.close()
+    return {'message': '保存品种介绍文件成功!'}
 
 
-@variety_router.get('/variety/{variety_en}/intro/')  # 获取一个品种的介绍文件
-async def get_variety_introduction(variety_en: str = Depends(verify_variety)):
-    return {'message': '使用静态文件方式: static/VARIETY/Intro/{}.pdf 访问'}
+@variety_router.get('/variety/intro/')  # 获取当前系统中已有的品种介绍信息
+async def get_variety_introduction():
+    with MySqlZ() as cursor:
+        cursor.execute(
+            "SELECT id,variety_name,variety_en,filepath FROM basic_variety_file "
+            "WHERE variety_en<>'0' ORDER BY variety_en DESC;"
+        )
+        intros = cursor.fetchall()
 
+    return {'message': '查询成功!', 'intros': intros}
+
+
+@variety_router.post('/variety/rule/')  # 创建一个制度规则文件
+async def create_variety_rule(rule_file: UploadFile = Form(...), rule_name: str = Form(...)):
+    # 将上传的文件保存
+    # 根据当前的时间戳生成保存的文件名称
+    filename = '{}{}.pdf'.format(rule_name, str(int(datetime.now().timestamp())))
+    save_path = os.path.join(FILE_STORAGE, 'VARIETY/Rule/{}'.format(filename))
+    sql_path = 'VARIETY/Rule/{}'.format(filename)
+    # 保存到数据库并保存文件
+    with MySqlZ() as cursor:
+        now_timestamp = int(datetime.now().timestamp())
+        # 新增并保存文件
+        cursor.execute(
+            "INSERT INTO basic_variety_file (create_time,update_time,variety_name,variety_en,filepath) "
+            "VALUES (%s,%s,%s,%s,%s);",
+            (now_timestamp, now_timestamp, rule_name, '0', sql_path)
+        )
+        # 保存文件
+        file_content = await rule_file.read()
+        with open(save_path, "wb") as fp:
+            fp.write(file_content)
+        await rule_file.close()
+    return {'message': '保存制度规则文件成功!'}
+
+
+@variety_router.get('/variety/rule/')  # 获取所有的制度规则文件
+async def get_variety_rule():
+    with MySqlZ() as cursor:
+        cursor.execute(
+            "SELECT id,variety_name,variety_en,filepath FROM basic_variety_file "
+            "WHERE variety_en='0' ORDER BY variety_en DESC;"
+        )
+        rules = cursor.fetchall()
+
+    return {'message': '查询成功!', 'rules': rules}

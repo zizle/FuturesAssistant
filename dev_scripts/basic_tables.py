@@ -44,5 +44,19 @@ with MySqlZ() as cursor:
         ") DEFAULT CHARSET='utf8';"
     )
 
+    # 品种有关的文件数据表
+    # 相关品种为'0'的则是制度规则文件
+    cursor.execute(
+        "CREATE TABLE IF NOT EXISTS `basic_variety_file` ("
+        "`id` INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,"
+        "`create_time` INT NOT NULL COMMENT '创建日期',"
+        "`update_time` INT NOT NULL COMMENT '更新日期',"
+        "`variety_name`VARCHAR(32) NOT NULL COMMENT '品种名称',"
+        "`variety_en` VARCHAR(2) NOT NULL COMMENT '相关品种',"
+        "`filepath` VARCHAR(256) NOT NULL COMMENT '文件路径',"
+        "`is_active` BIT NOT NULL DEFAULT 1"
+        ") DEFAULT CHARSET='utf8';"
+    )
+
 
 
