@@ -16,7 +16,7 @@ article_api = APIRouter()
 # 根据类型获取文章内容
 @article_api.get('/{article_type}/')
 async def get_content(article_type:str):
-    if article_type not in ['person', 'organization', 'examine']:
+    if article_type not in ['person', 'organization', 'riskmanager', 'otcoption', 'safefutures']:
         raise HTTPException(status_code=400, detail='参数错误,article_type Error!')
     # 查询数据
     with MySqlZ() as cursor:
@@ -32,7 +32,7 @@ async def get_content(article_type:str):
 # 根据类型创建一篇文章
 @article_api.post('/{article_type}/')
 async def create_content(article_type: str, content_item: ConsultArticleItem = Body(...), ):
-    if article_type not in ['person', 'organization', 'examine']:
+    if article_type not in ['person', 'organization', 'riskmanager', 'otcoption', 'safefutures']:
         raise HTTPException(status_code=400, detail='参数错误,article_type Error!')
     user_id, _ = decipher_user_token(content_item.user_token)
     if not user_id:
