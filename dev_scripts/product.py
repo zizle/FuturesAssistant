@@ -31,16 +31,16 @@ with MySqlZ() as cursor:
         ") DEFAULT CHARSET='utf8';"
     )
 
-    # 投资方案和套保方案数据表
-    cursor.execute(
-        "CREATE TABLE IF NOT EXISTS `product_plan_file` ("
-        "`id` INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,"
-        "`create_time` INT NOT NULL COMMENT '创建日期',"
-        "`creator` INT NOT NULL DEFAULT 0 COMMENT '创建者',"
-        "`variety_en` VARCHAR(20) DEFAULT '' COMMENT '关联品种',"
-        "`title` VARCHAR(128) NOT NULL COMMENT '文件名称',"
-        "`file_type` INT NOT NULL COMMENT '类型',"
-        "`filepath` VARCHAR(512) NOT NULL UNIQUE COMMENT '文件URL'"
-        ") DEFAULT CHARSET='utf8';"
-    )
+    # # 投资方案和套保方案数据表(与报告兼并)
+    # cursor.execute(
+    #     "CREATE TABLE IF NOT EXISTS `product_plan_file` ("
+    #     "`id` INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,"
+    #     "`create_time` INT NOT NULL COMMENT '创建日期',"
+    #     "`creator` INT NOT NULL DEFAULT 0 COMMENT '创建者',"
+    #     "`variety_en` VARCHAR(20) DEFAULT '' COMMENT '关联品种',"
+    #     "`title` VARCHAR(128) NOT NULL COMMENT '文件名称',"
+    #     "`file_type` INT NOT NULL COMMENT '类型',"
+    #     "`filepath` VARCHAR(512) NOT NULL UNIQUE COMMENT '文件URL'"
+    #     ") DEFAULT CHARSET='utf8';"
+    # )
 
