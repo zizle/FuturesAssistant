@@ -16,6 +16,7 @@ from fastapi.exception_handlers import HTTPException
 from fastapi.responses import StreamingResponse
 from pymysql.err import IntegrityError
 from utils import verify
+from utils.char_reverse import split_number_en
 from utils.client import encryption_uuid
 from db.redis_z import RedisZ
 from db.mysql_z import MySqlZ
@@ -145,7 +146,9 @@ async def get_user_in_db(
         today_str = datetime.today().strftime("%Y-%m-%d")
         # 非超管和非运营查询当前用户是否能在这个客户端登录
         machine_uuid = encryption_uuid(client_uuid, user_dict["id"])  # 得到客户端uuid
-        if user_dict["role"] not in ["superuser", "operator"]:
+        # 如果是测试账号。直接登录成功!
+        pre = split_number_en(phone)[0]
+        if pre != 'test' and user_dict["role"] not in ["superuser", "operator"]:
             cursor.execute(
                 "SELECT userclient.id, userclient.user_id FROM user_user_client AS userclient "
                 "INNER JOIN basic_client AS clienttb "
