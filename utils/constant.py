@@ -5,7 +5,7 @@
 
 VARIETY_CODES_ALL = [
     'A', 'AG', 'AL', 'AP', 'AU', 'B', 'BC', 'BU', 'C', 'CF', 'CJ', 'CS', 'CU', 'CY', 'EB', 'EG', 'FG', 'FU', 'HC', 'I', 'IC',
-    'IF', 'IH', 'J', 'JD', 'JM', 'JR', 'L', 'LH', 'LR', 'LU', 'M', 'MA', 'NI', 'NR', 'OI', 'P', 'PB', 'PF', 'PG', 'PM', 'PP',
+    'IF', 'IH', 'J', 'JD', 'JM', 'JR', 'L', 'LH', 'LR', 'LU', 'M', 'MA', 'NI', 'NR', 'OI', 'P', 'PB', 'PF', 'PG', 'PK', 'PM', 'PP',
     'RB', 'RI', 'RM', 'RR', 'RS', 'RU', 'SA', 'SF', 'SM', 'SN', 'SP', 'SR', 'SS', 'T', 'TA', 'TF', 'TS', 'UR', 'V',
     'WH', 'Y', 'ZC', 'ZN']
 
@@ -37,6 +37,7 @@ VARIETY_ZH = {
     'P': '棕榈油',
     'PF': '短纤',
     'PG': '液化石油气',
+    'PK': '花生',
     'PP': '聚丙烯',
     'RR': '粳米',
     'V': '聚氯乙烯',

@@ -35,29 +35,17 @@
 <script>
 let host = "http://127.0.0.1:8000/api/";
 
-// 生成series和图例的函数
-function getSeriesLegend(seriesData, sourceData, sheetHeaders) {
-    let len = seriesData.length;
-    let seriesArray = [];
-    let legend = {"type": "scroll", "bottom": 16, "height": 20, "data":[]};
-    for(let i = 0; i < len; i++) {
-        let optData = seriesData[i];
-        let seriesOption = {
-            type: optData.chart_type,
-            // name: optData.chart_name,
-            symbol: 'circle',
-            name: sheetHeaders[optData.column_index],
-            yAxisIndex: optData.axis_index,
-            connectNulls: true,
-            data: sourceData.map(item=>{return parseFloat(item[optData.column_index])})
-        };
-        seriesArray.push(seriesOption);
-        legend.data.push(sheetHeaders[optData.column_index],);
+// 计算字符的宽度font-size=12默认双字节为12,单字节为3
+function getStrWidth(str, px){
+    let realWidth = 0
+    for (let i=0;i<str.length;i++){
+        if (str.charCodeAt(i) > 255){
+            realWidth += px
+        }else{
+            realWidth += px / 4
+        }
     }
-    return {
-        seriesData: seriesArray,
-        legendData: legend
-    }
+    return realWidth
 }
 
 // 生成水印
@@ -96,11 +84,36 @@ function generateGraphic(watermark){
     }
 }
 
+// 生成series和图例的函数
+function getSeriesLegend(seriesData, sourceData, sheetHeaders) {
+    let len = seriesData.length;
+    let seriesArray = [];
+    let legend = {bottom: 18, "data":[]};
+    for(let i = 0; i < len; i++) {
+        let optData = seriesData[i];
+        let seriesOption = {
+            type: optData.chart_type,
+            // name: optData.chart_name,
+            symbol: 'circle',
+            name: sheetHeaders[optData.column_index],
+            yAxisIndex: optData.axis_index,
+            connectNulls: true,
+            data: sourceData.map(item=>{return parseFloat(item[optData.column_index])})
+        };
+        seriesArray.push(seriesOption);
+        legend.data.push(sheetHeaders[optData.column_index],);
+    }
+    return {
+        seriesData: seriesArray,
+        legendData: legend
+    }
+}
+
 // 获取图形序列和图例
 function getSeasonSeriesLegend(seriesData, sourceData){
     let optData = seriesData[0];
     let seriesArray = [];
-    let legend = {"type": "scroll", "bottom": 16, "height": 20, "data":[]};
+    let legend = {bottom: 18, "data":[]};
     for(let yearKey in sourceData){
         if (yearKey === "xAxisData"){continue}
         let yearData = sourceData[yearKey];
@@ -122,17 +135,41 @@ function getSeasonSeriesLegend(seriesData, sourceData){
     }
 }
 
+// 计算图例所占的行数
+function calculateLegendRowCount(legendData){
+    // legendData是一个数组
+    // 每个图例的宽度 = 图例标记(echarts固定宽) + 字符数 * 每个字符所需宽度
+    // echarts默认图例间隔itemGap = 10;默认图例标记宽度itemWidth = 25;默认图例标记高度itemHeight = 14
+    // echarts图例默认字体大小12，默认各内边距5
+    // 得一个图例所需要的宽度为25 + 5 + 字符数 * 12 + 5 + 10 = 45 + 字符数 * 12
+    // 图形显示区域总宽度在class中定义为600
+    let usedWidth = 0
+    let count = 1
+    legendData.forEach((item, index) => {
+        const eachWidth = 45 + getStrWidth(item, 12)
+        if (600 - usedWidth < eachWidth){
+            count = count + 1
+            usedWidth = 0
+        }
+        usedWidth = usedWidth + eachWidth
+    })
+    return count
+}
+
 
 // 生成季节图形的配置
 function generateSeasonOption(baseOption, sourceData, sheetHeaders){
     let chartTitle = baseOption["title"];
     let seriesLegend = getSeasonSeriesLegend(baseOption.series_data, sourceData);
+    let legendRowCount = calculateLegendRowCount(seriesLegend.legendData.data)
+    let extraTop = 5
+    if (legendRowCount < 2){extraTop = 10}
     return {
         grid: {
             top: chartTitle["font_size"] + 15,
             left: 5,
             right: 5,
-            bottom: 46,
+            bottom: legendRowCount * 14 + (legendRowCount - 1) * 10 + 22 + extraTop,
             show: false,
             containLabel: true
         },
@@ -177,12 +214,16 @@ function generateSeasonOption(baseOption, sourceData, sheetHeaders){
 function generateOption(baseOption, sourceData, sheetHeaders){
     let chartTitle = baseOption["title"];
     let seriesLegend = getSeriesLegend(baseOption.series_data, sourceData, sheetHeaders);
+    let legendRowCount = calculateLegendRowCount(seriesLegend.legendData.data)
+    // grid 的bottom值需 = 图例所占的行数 * 每行所占的高度14 + 22 // 其中27为伸缩条的高度20 + 间距2 + 顶部距离5
+    let extraTop = 5
+    if (legendRowCount < 2){extraTop = 10}
     return {
         grid: {
             top: chartTitle["font_size"] + 15,
             left: 5,
             right: 5,
-            bottom: 46,
+            bottom: legendRowCount * 14 + (legendRowCount - 1) * 10 + 22 + extraTop,
             show: false,
             containLabel: true
         },
