@@ -461,3 +461,34 @@ async def modify_sheet_one_record(
     with VarietySheetDB() as vs_cursor:
         vs_cursor.execute(update_statement)
     return {"message": "修改数据成功!"}
+
+
+@sheet_router.get('/sheet/{sheet_id}/record/last/', summary='获取数据表的最新一行数据')
+async def get_sheet_last_record(sheet_id: int):
+    # 获取数据表的名称
+    with MySqlZ() as cursor:
+        cursor.execute("SELECT id,db_table FROM industry_user_sheet WHERE id=%s;", (sheet_id, ))
+        table_obj = cursor.fetchone()
+        if not table_obj:
+            return {'message': '查询成功!', 'record': []}
+        db_table = table_obj['db_table']
+    # 获取最大日期的一行数据
+    query_row = "SELECT * FROM {} WHERE column_0=(SELECT MAX(column_0) FROM {} WHERE id>1);".format(db_table, db_table)
+    query_header = "SELECT * FROM {} WHERE id=1;".format(db_table)
+    with VarietySheetDB() as vs_cursor:
+        vs_cursor.execute(query_row)
+        max_date_row = vs_cursor.fetchone()
+        vs_cursor.execute(query_header)
+        header_row = vs_cursor.fetchone()
+    return {'message': '查询成功!', 'last_row': max_date_row, 'header_row': header_row}
+
+
+@sheet_router.post('/sheet/{sheet_id}/record/add/', summary="用户为指定表添加记录")
+async def add_sheet_record(sheet_id: int, user_token: str = Depends(oauth2_scheme),
+                           body_data: dict = Body(...)):
+    print(sheet_id)
+    print(user_token)
+    print(body_data)
+
+    return {}
+
