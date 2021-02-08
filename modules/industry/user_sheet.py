@@ -306,13 +306,15 @@ async def get_variety_sheet(
         return {"message": "查询品种表成功!", "sheets": []}
     with MySqlZ() as cursor:
         cursor.execute(
-            "SELECT id,DATE_FORMAT(create_time,'%%Y-%%m-%%d') AS create_date,"
-            "DATE_FORMAT(update_time,'%%Y-%%m-%%d %%H:%%i') AS update_date,creator,update_by,"
-            "variety_en,group_id,sheet_name,min_date,max_date,update_count,origin,note,is_private "
-            "FROM industry_user_sheet "
-            "WHERE variety_en=%s AND "
-            "IF(0=%s,TRUE,group_id=%s) AND IF(0=%s,TRUE,creator=%s) AND IF(%s=creator,TRUE,is_private=0) "
-            "ORDER BY suffix ASC;",
+            "SELECT st.id,DATE_FORMAT(st.create_time,'%%Y-%%m-%%d') AS create_date,"
+            "DATE_FORMAT(st.update_time,'%%Y-%%m-%%d %%H:%%i') AS update_date,st.creator,st.update_by,"
+            "st.variety_en,st.group_id,st.sheet_name,st.min_date,st.max_date,st.update_count,st.origin,"
+            "st.note,st.is_private,"
+            "(SELECT COUNT(id) FROM industry_user_chart WHERE st.id=sheet_id) AS chart_count "
+            "FROM industry_user_sheet AS st "
+            "WHERE st.variety_en=%s AND "
+            "IF(0=%s,TRUE,st.group_id=%s) AND IF(0=%s,TRUE,st.creator=%s) AND IF(%s=st.creator,TRUE,st.is_private=0) "
+            "ORDER BY st.suffix ASC;",
             (variety_en, group_id, group_id, is_own, user_id, user_id)
         )
         sheets = cursor.fetchall()
@@ -485,10 +487,66 @@ async def get_sheet_last_record(sheet_id: int):
 
 @sheet_router.post('/sheet/{sheet_id}/record/add/', summary="用户为指定表添加记录")
 async def add_sheet_record(sheet_id: int, user_token: str = Depends(oauth2_scheme),
-                           body_data: dict = Body(...)):
-    print(sheet_id)
-    print(user_token)
-    print(body_data)
-
-    return {}
+                           body_data: list = Body(...)):
+    # 解析用户
+    user_id, _ = decipher_user_token(user_token)
+    if not user_id:
+        return {'message': '登录过期,修改失败!', 'new_count': 0}
+    if len(body_data) < 1:
+        return {'message': '添加成功!您没有增加数据', 'new_count': 0}
+    # 检查上传者身份,并验证表的归属(pass)
+    # 处理上传的数据
+    columns = ['column_{}'.format(i) for i in range(len(body_data[0]))]
+    # 转为pandas,去除重复日期的值
+    df = pd.DataFrame(body_data, columns=columns)
+    df.drop_duplicates(subset=['column_0'], inplace=True, keep='first')
+    with MySqlZ() as cursor:
+        cursor.execute("SELECT id,db_table FROM industry_user_sheet WHERE id=%s;", (sheet_id, ))
+        sheet_obj = cursor.fetchone()
+        if not sheet_obj:
+            return {'message': '数据表不存在,添加错误!', 'new_count': 0}
+        db_table = sheet_obj['db_table']
+        with VarietySheetDB() as v_cursor:
+            # 查询表头截取数据
+            v_cursor.execute("SELECT * FROM %s WHERE id=1;" % db_table)
+            sheet_headers_dict = v_cursor.fetchone()
+            # 根据headers生成column列(防止新增列后出现的错误)
+            columns_indexes = ["column_{}".format(i) for i in range(len(sheet_headers_dict) - 1)]  # 减1为id列
+            # 截取数据
+            df = df.reindex(columns=columns_indexes, fill_value='')
+            add_count = 0
+            if not df.empty:
+                # 插入数据
+                last_index = len(df.columns) - 1
+                col_name = ""
+                val_name = ""
+                for index, col_item in enumerate(df.columns.values.tolist()):
+                    if index == last_index:
+                        col_name += col_item
+                        val_name += "%(" + col_item + ")s"
+                    else:
+                        col_name += col_item + ","
+                        val_name += "%(" + col_item + ")s" + ","
+                new_values = df.to_dict(orient="records")
+                insert_statement = "INSERT INTO %s (%s) VALUES (%s);" % (db_table, col_name, val_name)
+                add_count = v_cursor.executemany(insert_statement, new_values)
+            # 查询表的最大值和最小值
+            v_cursor.execute(
+                "SELECT MIN(column_0) AS min_date,MAX(column_0) AS max_date FROM %s WHERE id>2;" % db_table)
+            date_msg = v_cursor.fetchone()
+        if date_msg['min_date'] and date_msg['max_date']:
+            # 更新表的信息
+            sheet_message = {'min_date': date_msg['min_date'], 'max_date': date_msg['max_date']}
+            sheet_message["update_by"] = user_id
+            sheet_message["update_time"] = datetime.now()
+            sheet_message['update_count'] = add_count
+            sheet_message['db_table'] = db_table
+            # 更新品种表的数据记录
+            cursor.execute(
+                "UPDATE industry_user_sheet SET update_by=%(update_by)s,update_time=%(update_time)s,"
+                "min_date=%(min_date)s,max_date=%(max_date)s,update_count=%(update_count)s "
+                "WHERE db_table=%(db_table)s;",
+                sheet_message
+            )
+    return {'message': '添加数据成功!', 'new_count': add_count}
 
