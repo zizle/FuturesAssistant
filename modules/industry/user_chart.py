@@ -61,6 +61,7 @@ async def sheet_chart(
     with open(option_file, 'w', encoding='utf-8') as fp:
         json.dump(chart_option.option, fp, indent=4)
     # 保存到数据库
+    category = chart_option.option['chart_category']
     save_dict = {
         "creator": user_id,
         "title": chart_option.title,
@@ -68,15 +69,16 @@ async def sheet_chart(
         "sheet_id": sheet_id,
         "option_file": relative_path,
         "decipherment": chart_option.decipherment,
-        "is_private": 1 if chart_option.is_private else 0
+        "is_private": 1 if chart_option.is_private else 0,
+        "group_name": category
     }
     try:
         with MySqlZ() as cursor:
             cursor.execute(
                 "INSERT INTO industry_user_chart "
-                "(creator,title,variety_en,sheet_id,option_file,decipherment,is_private) "
+                "(creator,title,variety_en,sheet_id,option_file,group_name,decipherment,is_private) "
                 "VALUES (%(creator)s,%(title)s,%(variety_en)s,%(sheet_id)s,%(option_file)s,"
-                "%(decipherment)s,%(is_private)s);",
+                "%(group_name)s,%(decipherment)s,%(is_private)s);",
                 save_dict
             )
             # 更新后缀
@@ -269,7 +271,8 @@ async def variety_chart(
         token: str = Query(''),
         is_own: int = Query(0, ge=0, le=1),
         render: int = Query(0, ge=0, le=1),
-        is_petit: int = Query(0, ge=0, le=1)
+        is_petit: int = Query(0, ge=0, le=1),
+        category: str = Query('0')
 ):
     user_id, _ = decipher_user_token(token)
     if not user_id:
@@ -277,7 +280,7 @@ async def variety_chart(
     with MySqlZ() as cursor:
         cursor.execute(
             "SELECT id, DATE_FORMAT(create_time,'%%Y-%%m-%%d') AS create_time,creator,"
-            "title,variety_en,sheet_id,option_file,decipherment,suffix,is_principal,is_petit,is_private "
+            "title,variety_en,sheet_id,option_file,group_name,decipherment,suffix,is_principal,is_petit,is_private "
             "FROM industry_user_chart "
             "WHERE variety_en=%s AND IF(%s=0,TRUE,creator=%s) AND IF(%s=creator,TRUE,is_private=0) AND IF(%s=0,TRUE,is_petit=1) "
             "ORDER BY suffix ASC;",
@@ -287,10 +290,11 @@ async def variety_chart(
         cursor.execute("SELECT id,username FROM user_user WHERE role<>'normal';")
         user_list = cursor.fetchall()
         user_dict = {user_item["id"]: user_item["username"] for user_item in user_list}
-
+    if category != '0':
+        # 只返回指定类型的图形
+        charts = list(filter(lambda x: x['group_name'] == category, charts))
     for chart_item in charts:
         chart_item["creator"] = user_dict.get(chart_item["creator"])
-
     if render:  # 模板渲染
         return template.TemplateResponse(
             "sheet_charts.html",
