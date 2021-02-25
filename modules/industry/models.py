@@ -40,6 +40,12 @@ class ModifySpotItem(SpotPriceItem):
     increase: float
 
 
+class SpotPriceUpdateItem(BaseModel):
+    # 更新现货报价数据的模型
+    variety_en: str
+    price: float
+
+
 class UpdateFolderItem(BaseModel):
     """ 配置更新文件夹 """
     client: str
