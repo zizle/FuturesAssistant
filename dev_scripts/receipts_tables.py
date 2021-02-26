@@ -9,12 +9,11 @@ with ExchangeLibDB() as cursor:
     cursor.execute(
         "CREATE TABLE IF NOT EXISTS `shfe_receipt` ("
         "`id` INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,"
-        "`date` VARCHAR(8) NOT NULL,"
-        "`create_date` DATETIME NOT NULL DEFAULT NOW(),"
-        "`variety_en` VARCHAR(32) NOT NULL,"
-        "`warehouse` VARCHAR (32) NOT NULL,"
-        "`receipt` INT(11) DEFAULT NULL DEFAULT 0,"
-        "`receipt_increase` INT(11) DEFAULT NULL DEFAULT 0"
+        "`date` INT NOT NULL COMMENT '日期',"
+        "`variety_en` VARCHAR(32) NOT NULL COMMENT '品种',"
+        "`receipt` INT NOT NULL DEFAULT 0,"
+        "`increase` INT NOT NULL DEFAULT 0,"
+        "UNIQUE KEY `date`(`date`,`variety_en`)"
         ") DEFAULT CHARSET='utf8';"
     )
 
@@ -22,11 +21,22 @@ with ExchangeLibDB() as cursor:
     cursor.execute(
         "CREATE TABLE IF NOT EXISTS `dce_receipt` ("
         "`id` INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,"
-        "`date` VARCHAR(8) NOT NULL,"
-        "`create_date` DATETIME NOT NULL DEFAULT NOW(),"
-        "`variety_en` VARCHAR(32) NOT NULL,"
-        "`warehouse` VARCHAR (32) NOT NULL,"
-        "`receipt` INT(11) DEFAULT NULL DEFAULT 0,"
-        "`receipt_increase` INT(11) DEFAULT NULL DEFAULT 0"
+        "`date` INT NOT NULL COMMENT '日期',"
+        "`variety_en` VARCHAR(32) NOT NULL COMMENT '品种',"
+        "`receipt` INT NOT NULL DEFAULT 0,"
+        "`increase` INT NOT NULL DEFAULT 0,"
+        "UNIQUE KEY `date`(`date`,`variety_en`)"
+        ") DEFAULT CHARSET='utf8';"
+    )
+
+    # 郑商所
+    cursor.execute(
+        "CREATE TABLE IF NOT EXISTS `czce_receipt` ("
+        "`id` INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,"
+        "`date` INT NOT NULL COMMENT '日期',"
+        "`variety_en` VARCHAR(32) NOT NULL COMMENT '品种',"
+        "`receipt` INT NOT NULL DEFAULT 0,"
+        "`increase` INT NOT NULL DEFAULT 0,"
+        "UNIQUE KEY `date`(`date`,`variety_en`)"
         ") DEFAULT CHARSET='utf8';"
     )

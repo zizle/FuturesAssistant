@@ -142,6 +142,27 @@ async def query_czce_rank(query_date: str = Depends(verify_date), variety: str =
     }
 
 
+@query_router.get('/exchange/czce/receipt/', summary='查询郑商所的每日仓单')
+async def query_czce_receipt(query_date: str = Depends(verify_date), variety: str = Query('0')):
+    with ExchangeLibDB() as cursor:
+        cursor.execute(
+            "SELECT * FROM `czce_receipt` WHERE `date`=%s AND IF('0'=%s,TRUE,variety_en=%s);",
+            (query_date, variety, variety)
+        )
+        result = cursor.fetchall()
+
+    # pandas处理数据
+    table_df = pd.DataFrame(result, columns=['date', 'variety_en', 'receipt', 'increase'])
+    table_values = handler_exchange_data(table_df, sort_by=['variety_en'])
+    keys = OrderedDict({
+        "date": "日期", "variety_zh": "品种", "variety_en": "交易代码", "receipt": "仓单数量", "increase": "当日增减"})
+    return {
+        "message": "郑州商品交易所{}每日仓单查询成功!".format(query_date),
+        "result": table_values,
+        "content_keys": keys
+    }
+
+
 @query_router.get("/exchange/dce/daily/", summary="查询大商所日行情数据")
 async def query_dce_daily(query_date: str = Depends(verify_date), variety: str = Query('0')):
     with ExchangeLibDB() as cursor:
@@ -195,6 +216,27 @@ async def query_dce_rank(query_date: str = Depends(verify_date), variety: str = 
     }
 
 
+@query_router.get('/exchange/dce/receipt/', summary='查询大商所的每日仓单')
+async def query_dce_receipt(query_date: str = Depends(verify_date), variety: str = Query('0')):
+    with ExchangeLibDB() as cursor:
+        cursor.execute(
+            "SELECT * FROM `dce_receipt` WHERE `date`=%s AND IF('0'=%s,TRUE,variety_en=%s);",
+            (query_date, variety, variety)
+        )
+        result = cursor.fetchall()
+
+    # pandas处理数据
+    table_df = pd.DataFrame(result, columns=['date', 'variety_en', 'receipt', 'increase'])
+    table_values = handler_exchange_data(table_df, sort_by=['variety_en'])
+    keys = OrderedDict({
+        "date": "日期", "variety_zh": "品种", "variety_en": "交易代码", "receipt": "仓单数量", "increase": "当日增减"})
+    return {
+        "message": "大连商品交易所{}每日仓单查询成功!".format(query_date),
+        "result": table_values,
+        "content_keys": keys
+    }
+
+
 @query_router.get("/exchange/shfe/daily/", summary="查询上期所日行情数据")
 async def query_shfe_daily(query_date: str = Depends(verify_date), variety: str = Query('0')):
     with ExchangeLibDB() as cursor:
@@ -242,6 +284,27 @@ async def query_shfe_rank(query_date: str = Depends(verify_date), variety: str =
     })
     return {
         "message": "上海期货交易所{}日持仓排名数据查询成功!".format(query_date),
+        "result": table_values,
+        "content_keys": keys
+    }
+
+
+@query_router.get('/exchange/shfe/receipt/', summary='查询上期所的每日仓单')
+async def query_shfe_receipt(query_date: str = Depends(verify_date), variety: str = Query('0')):
+    with ExchangeLibDB() as cursor:
+        cursor.execute(
+            "SELECT * FROM `shfe_receipt` WHERE `date`=%s AND IF('0'=%s,TRUE,variety_en=%s);",
+            (query_date, variety, variety)
+        )
+        result = cursor.fetchall()
+
+    # pandas处理数据
+    table_df = pd.DataFrame(result, columns=['date', 'variety_en', 'receipt', 'increase'])
+    table_values = handler_exchange_data(table_df, sort_by=['variety_en'])
+    keys = OrderedDict({
+        "date": "日期", "variety_zh": "品种", "variety_en": "交易代码", "receipt": "仓单数量", "increase": "当日增减"})
+    return {
+        "message": "上海期货交易所{}每日仓单查询成功!".format(query_date),
         "result": table_values,
         "content_keys": keys
     }
