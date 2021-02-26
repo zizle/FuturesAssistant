@@ -23,18 +23,18 @@ async def add_suggest(suggest_item: SuggestItem = Body(...)):
     now_ts = int(datetime.datetime.now().timestamp())
     with MySqlZ() as cursor:
         cursor.execute(
-            "INSERT INTO basic_suggest (create_time,user_id,content) "
-            "VALUES (%s,%s,%s);",
-            (now_ts, user_id, suggest_item.content)
+            "INSERT INTO basic_suggest (create_time,user_id,content,links) "
+            "VALUES (%s,%s,%s,%s);",
+            (now_ts, user_id, suggest_item.content, suggest_item.links)
         )
     return {'message': '提交成功!'}
 
 
-@suggest_api.get('/suggest/', summary='获取用户的交易列表')  #
+@suggest_api.get('/suggest/', summary='获取用户的建议列表')  #
 async def get_suggest():
     with MySqlZ() as cursor:
         cursor.execute(
-            "SELECT bst.id,utb.username,utb.note,bst.create_time,bst.content,bst.is_accept "
+            "SELECT bst.id,utb.username,utb.note,bst.create_time,bst.content,bst.links,bst.is_accept "
             "FROM basic_suggest AS bst "
             "INNER JOIN user_user AS utb "
             "ON bst.user_id=utb.id "

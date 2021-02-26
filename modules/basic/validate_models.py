@@ -61,4 +61,5 @@ class VarietyItem(BaseModel):
 class SuggestItem(BaseModel):  # 意见反馈Item
     user_token: str
     content: str
+    links: str
 
