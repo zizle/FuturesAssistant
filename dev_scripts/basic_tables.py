@@ -58,5 +58,18 @@ with MySqlZ() as cursor:
         ") DEFAULT CHARSET='utf8';"
     )
 
+    # 意见信息表
+    cursor.execute(
+        "CREATE TABLE IF NOT EXISTS `basic_suggest` ("
+        "`id` INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,"
+        "`create_time` INT NOT NULL COMMENT '创建日期',"
+        "`user_id` INT NOT NULL COMMENT '用户',"
+        "`content` TEXT NOT NULL COMMENT '建议内容',"
+        "`links` VARCHAR(512) NOT NULL DEFAULT '' COMMENT '联系方式',"
+        "`is_accept` BIT NOT NULL DEFAULT 0 COMMENT '是否接受'"
+        ") DEFAULT CHARSET='utf8';"
+    )
+
+
 
 

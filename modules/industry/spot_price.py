@@ -84,6 +84,12 @@ async def spot_price(sources: List[SpotPriceItem] = Body(...), current_date: str
     return {"message": message}
 
 
+@spot_price_router.post("/spot-price/update/", summary="更新或增加现货价格数据")
+async def update_spot_price():
+    
+    return {'message': '保存成功!'}
+
+
 @spot_price_router.get("/spot-price/", summary="获取某日现货价格数据")
 async def query_spot_price(query_date: int = Depends(verify_date)):
     with ExchangeLibDB() as cursor:

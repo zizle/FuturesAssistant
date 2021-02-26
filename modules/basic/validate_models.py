@@ -50,11 +50,16 @@ class VarietyGroupCN(Enum):
     metal: str = "金属产业"
 
 
-
 class VarietyItem(BaseModel):
     """ 添加品种的验证项 """
     variety_name: str
     variety_en: str
     exchange_lib: ExchangeLib
     group_name: VarietyGroup
+
+
+class SuggestItem(BaseModel):  # 意见反馈Item
+    user_token: str
+    content: str
+    links: str
 
