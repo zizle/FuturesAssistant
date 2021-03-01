@@ -41,9 +41,8 @@ class RankItem(BaseModel):
 class ReceiptItem(BaseModel):
     date: int
     variety_en: str
-    warehouse: str
     receipt: int
-    receipt_increase: int
+    increase: int
 
 
 class CZCEDailyItem(DailyItem):
@@ -58,7 +57,7 @@ class CZCERankItem(RankItem):
 
 
 class CZCEReceiptItem(ReceiptItem):
-    premium_discount: float
+    pass
 
 
 class SHFEReceiptItem(ReceiptItem):

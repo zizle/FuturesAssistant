@@ -73,8 +73,6 @@ async def save_cffex_rank(
     return {"message": message}
 
 
-
-
 @saver_router.post("/exchange/czce/daily/", summary="保存郑商所日交易数据")
 async def save_czce_daily(
         sources: List[CZCEDailyItem] = Body(...),
@@ -127,16 +125,16 @@ async def save_czce_rank(
 
 
 @saver_router.post("/exchange/czce/receipt/", summary="保存郑商所仓单日报数据")
-async def save_czce_receipt(
-        sources: List[CZCEReceiptItem] = Body(...),
-        current_date: str = Depends(verify_date)
-):
+async def save_czce_receipt(sources: List[CZCEReceiptItem] = Body(...)):
     data_json = jsonable_encoder(sources)
-    save_sql = "INSERT INTO `czce_receipt` " \
-               "(`date`,`variety_en`,`warehouse`," \
-               "`receipt`,`receipt_increase`,`premium_discount`) " \
-               "VALUES (%(date)s,%(variety_en)s,%(warehouse)s," \
-               "%(receipt)s,%(receipt_increase)s,%(premium_discount)s);"
+    save_sql = "INSERT IGNORE INTO `czce_receipt` " \
+               "(`date`,`variety_en`, `receipt`,`increase`) " \
+               "VALUES (%(date)s,%(variety_en)s,%(receipt)s,%(increase)s);"
+    if len(data_json) < 1:
+        return {"message": "保存郑商所数据成功!新增0"}
+
+    current_date = data_json[0]['date']
+
     with ExchangeLibDB() as cursor:
         # 查询数据时间
         cursor.execute("SELECT `id`, `date` FROM `czce_receipt` WHERE `date`=%s;" % current_date)
@@ -201,16 +199,15 @@ async def save_shfe_rank(
 
 
 @saver_router.post("/exchange/shfe/receipt/", summary="保存上期所所仓单日报数据")
-async def save_shfe_receipt(
-        sources: List[SHFEReceiptItem] = Body(...),
-        current_date: str = Depends(verify_date)
-):
+async def save_shfe_receipt(sources: List[SHFEReceiptItem] = Body(...)):
     data_json = jsonable_encoder(sources)
+    if len(data_json) < 1:
+        return {"message": "保存郑商所数据成功!新增0"}
+    current_date = data_json[0]['date']
+
     save_sql = "INSERT INTO `shfe_receipt` " \
-               "(`date`,`variety_en`,`warehouse`," \
-               "`receipt`,`receipt_increase`) " \
-               "VALUES (%(date)s,%(variety_en)s,%(warehouse)s," \
-               "%(receipt)s,%(receipt_increase)s);"
+               "(`date`,`variety_en`,`receipt`,`increase`) " \
+               "VALUES (%(date)s,%(variety_en)s,%(receipt)s,%(increase)s);"
 
     with ExchangeLibDB() as cursor:
         # 查询数据时间
@@ -277,16 +274,15 @@ async def save_dce_rank(
 
 
 @saver_router.post("/exchange/dce/receipt/", summary="保存大商所所仓单日报数据")
-async def save_dce_receipt(
-        sources: List[DCEReceiptItem] = Body(...),
-        current_date: str = Depends(verify_date)
-):
+async def save_dce_receipt(sources: List[DCEReceiptItem] = Body(...)):
     data_json = jsonable_encoder(sources)
-    save_sql = "INSERT INTO `dce_receipt` " \
-               "(`date`,`variety_en`,`warehouse`," \
-               "`receipt`,`receipt_increase`) " \
-               "VALUES (%(date)s,%(variety_en)s,%(warehouse)s," \
-               "%(receipt)s,%(receipt_increase)s);"
+    if len(data_json) < 1:
+        return {"message": "保存郑商所数据成功!新增0"}
+    current_date = data_json[0]['date']
+
+    save_sql = "INSERT IGNORE INTO `dce_receipt` " \
+               "(`date`,`variety_en`,`receipt`,`increase`) " \
+               "VALUES (%(date)s,%(variety_en)s,%(receipt)s,%(increase)s);"
 
     with ExchangeLibDB() as cursor:
         # 查询数据时间
