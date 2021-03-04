@@ -11,6 +11,7 @@ from .queryer import query_router
 from .position import position_router
 from .artbitrage import arbitrage_router
 from .weekly import weekly_router
+from .correlation import corr_router
 
 exchange_router = APIRouter()
 
@@ -19,4 +20,5 @@ exchange_router.include_router(query_router)
 exchange_router.include_router(position_router)
 exchange_router.include_router(arbitrage_router)
 exchange_router.include_router(weekly_router)
+exchange_router.include_router(corr_router)
 
