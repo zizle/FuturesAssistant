@@ -13,16 +13,13 @@ API-6: 修改报告名称
 API-7: 首页日报获取最新5-50个信息
 """
 import os
-import string
-import random
-import shutil
 from datetime import datetime
 from fastapi import APIRouter, Depends, Form, UploadFile, HTTPException, Query, Body
 from utils.verify import oauth2_scheme, decipher_user_token
 from db.mysql_z import MySqlZ
 from utils.constant import VARIETY_ZH, REPORT_TYPES
 from utils.file import generate_unique_filename
-from .models import ReportType, ModifyReportInfo
+from .models import ModifyReportInfo
 from configs import FILE_STORAGE
 
 report_router = APIRouter()
@@ -99,14 +96,14 @@ async def get_report_with_paginator(
         raise HTTPException(status_code=400, detail="Unknown Report Type")
 
     if variety_en == "0":
-        execute_sql = "SELECT id,file_date,variety_en,title,file_type,filepath,is_active FROM research_file " \
+        execute_sql = "SELECT id,file_date,variety_en,title,file_type,filepath,reading,is_active FROM research_file " \
                       "WHERE file_type=%s ORDER BY file_date DESC,`id` DESC LIMIT %s,%s;"
         execute_params = (report_type, (page-1)*page_size, page_size)
         count_execute_sql = "SELECT COUNT(id) AS total_count FROM research_file " \
                             "WHERE file_type=%s;"
         count_execute_params = (report_type, )
     else:
-        execute_sql = "SELECT id,file_date,variety_en,title,file_type,filepath,is_active FROM research_file " \
+        execute_sql = "SELECT id,file_date,variety_en,title,file_type,filepath,reading,is_active FROM research_file " \
                       "WHERE file_type=%s AND LOCATE(%s,variety_en) > 0 " \
                       "ORDER BY file_date DESC,`id` DESC LIMIT %s,%s;"
         execute_params = (report_type, variety_en, (page-1)*page_size, page_size)
@@ -143,7 +140,7 @@ async def get_report_info(
     with MySqlZ() as cursor:
         cursor.execute(
             "SELECT tfile.id,tfile.create_time,tfile.update_time,tfile.file_date,tuser.username,tfile.variety_en,"
-            "tfile.title,tfile.file_type,tfile.filepath,tfile.is_active "
+            "tfile.title,tfile.file_type,tfile.filepath,tfile.reading,tfile.is_active "
             "FROM research_file AS tfile "
             "LEFT JOIN user_user AS tuser ON tfile.creator=tuser.id "
             "WHERE tfile.file_date=%s AND IF('0'=%s,TRUE,LOCATE(%s,tfile.variety_en)>0);",
@@ -235,3 +232,10 @@ async def get_report(report_type: int = Query(...), count: int = Query(..., ge=5
         report_item["type_zh"] = REPORT_TYPES.get(report_item["file_type"], report_item["file_type"])
         report_item["variety_zh"] = VARIETY_ZH.get(report_item["variety_en"], report_item["variety_en"])
     return {"message": "获取最新{}成功!".format(REPORT_TYPES.get(report_type)), "reports": reports}
+
+
+@report_router.post('/report-file/{report_id}/reading/', summary='增加一个报告的阅读量')
+async def read_count(report_id: int):
+    with MySqlZ() as cursor:
+        cursor.execute("UPDATE research_file SET reading=reading+1 WHERE id=%s;", (report_id, ))
+    return {'message': '操作成功!'}
