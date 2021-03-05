@@ -5,6 +5,7 @@
 # 相关性分析
 import datetime
 import pandas as pd
+import numpy as np
 from fastapi import APIRouter, Depends, Query, HTTPException
 from db.mysql_z import ExchangeLibDB
 
@@ -26,7 +27,6 @@ def get_end_timestamp(es: str = Query(...)):
 
 @corr_router.get('/correlation/')
 async def variety_correlation(ts: int = Depends(get_timestamp), es: int = Depends(get_end_timestamp)):
-    print(ts, es)
     with ExchangeLibDB() as cursor:
         cursor.execute(
             'SELECT * FROM zero_price_index '
@@ -40,7 +40,6 @@ async def variety_correlation(ts: int = Depends(get_timestamp), es: int = Depend
     # 以date分组提取各品种的dominant_price数据
     price_df['dominant_price'] = price_df['dominant_price'].astype(float)
     price_dfs = price_df.groupby(['date'])
-    is_init_df = False
     result_df = None
     for pf in price_dfs:
         data_arr = pf[1].to_dict(orient='records')
@@ -54,7 +53,16 @@ async def variety_correlation(ts: int = Depends(get_timestamp), es: int = Depend
             result_df = vp_df.copy()
         else:
             result_df = pd.concat([result_df, vp_df], axis=0)
-
     corr_df = result_df.corr()
-    corr_df.fillna('-', inplace=True)
-    return {'message': '查询成功!', 'correlation': corr_df.to_dict(orient='records')}
+    corr_df = corr_df.apply(lambda x: round(x, 4))
+    corr_df.fillna(0, inplace=True)
+    corr_df = corr_df.iloc[::-1]
+    columns = corr_df.columns.tolist()
+    index = corr_df.index.tolist()
+    correlation = []
+    # correlation = np.array(corr_df).tolist()
+    row_count, col_count = corr_df.shape
+    for row in range(row_count):
+        for col in range(col_count):
+            correlation.append([col, row, corr_df.iloc[row][col]])  # row,col分别对应echarts热力图y, x
+    return {'message': '查询成功!', 'correlation': correlation, 'columns': columns, 'index': index}
