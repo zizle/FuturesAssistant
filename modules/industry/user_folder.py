@@ -22,22 +22,26 @@ async def create_update_folder(
     # 查询增加或更新
     with MySqlZ() as cursor:
         cursor.execute(
-            "SELECT id,user_id FROM industry_user_folder "
+            "SELECT id,user_id,is_dated FROM industry_user_folder "
             "WHERE client=%s AND user_id=%s AND variety_en=%s AND group_id=%s;",
             (body_item.client, user_id, body_item.variety_en, body_item.group_id)
         )
         is_exist = cursor.fetchone()
         if is_exist:  # 存在则更新
-            cursor.execute(
-                "UPDATE industry_user_folder SET folder=%s "
-                "WHERE client=%s AND variety_en=%s AND group_id=%s AND user_id=%s;",
-                (body_item.folder_path, body_item.client, body_item.variety_en, body_item.group_id, user_id)
-            )
+            if is_exist['is_dated'] == body_item.is_dated:  # 一致才能更新
+                cursor.execute(
+                    "UPDATE industry_user_folder SET folder=%s,is_dated=%s "
+                    "WHERE client=%s AND variety_en=%s AND group_id=%s AND user_id=%s AND is_dated=%s;",
+                    (body_item.folder_path, body_item.is_dated, body_item.client, body_item.variety_en, body_item.group_id, user_id, body_item.is_dated)
+                )
+            else:
+                return {"message": "配置失败：同品种下日期与非日期序列不能配置为同一组中!"}
+
         else:
             cursor.execute(
-                "INSERT INTO industry_user_folder (variety_en,group_id,folder,client,user_id) "
-                "VALUES (%s,%s,%s,%s,%s);",
-                (body_item.variety_en, body_item.group_id, body_item.folder_path, body_item.client, user_id)
+                "INSERT INTO industry_user_folder (variety_en,group_id,folder,client,user_id,is_dated) "
+                "VALUES (%s,%s,%s,%s,%s,%s);",
+                (body_item.variety_en, body_item.group_id, body_item.folder_path, body_item.client, user_id, body_item.is_dated)
             )
     return {"message": "配置成功!"}
 
@@ -55,7 +59,7 @@ async def get_update_folder(
     client = encryption_uuid(client, user_id)  # 加密uuid与数据库对应
     with MySqlZ() as cursor:
         cursor.execute(
-            "SELECT varitytb.variety_name,grouptb.group_name,foldertb.folder "
+            "SELECT varitytb.variety_name,grouptb.group_name,foldertb.folder,foldertb.is_dated "
             "FROM industry_user_folder AS foldertb,basic_variety AS varitytb,industry_sheet_group AS grouptb "
             "WHERE foldertb.variety_en=varitytb.variety_en "
             "AND foldertb.group_id=grouptb.id AND "

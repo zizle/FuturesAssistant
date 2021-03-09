@@ -8,6 +8,7 @@ from pydantic import BaseModel
 class SheetData(BaseModel):
     variety_en: str
     group_id: int
+    is_dated: int
     sheet_name: str
     sheet_headers: list
     sheet_values: list
@@ -52,6 +53,7 @@ class UpdateFolderItem(BaseModel):
     folder_path: str
     variety_en: str
     group_id: int
+    is_dated: int
 
 
 class ModifyChartOptionItem(BaseModel):

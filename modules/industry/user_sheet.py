@@ -123,6 +123,9 @@ def save_new_sheet(
     new_values = source_df.to_dict(orient="records")
     # 日志记录用户创建表
     logger.info('用户新建表:\n{}'.format(create_statement))
+    print(drop_table_statement)
+    print(create_statement)
+    print(insert_statement)
     with VarietySheetDB() as cursor:
         cursor.execute(drop_table_statement)  # 如果之前有创建成功的表但记录出错则可删除
         cursor.execute(create_statement)  # 创建数据表
@@ -236,6 +239,7 @@ async def variety_sheet(
     body_variety_en = source_data.variety_en
     group_id = source_data.group_id
     sheet_name = source_data.sheet_name
+    is_dated = source_data.is_dated
     name_md5 = md5(sheet_name.encode("utf-8")).hexdigest()
     sheet_headers = source_data.sheet_headers
     sheet_values = source_data.sheet_values
@@ -247,7 +251,8 @@ async def variety_sheet(
     source_df = pd.DataFrame(sheet_values)
     if len(sheet_headers) != len(source_df.columns):
         raise HTTPException(status_code=400, detail="Invalid Values!")
-    source_df["column_0"] = source_df["column_0"].apply(verify_date)
+    if is_dated:
+        source_df["column_0"] = source_df["column_0"].apply(verify_date)
     source_df.iloc[:1].fillna('', inplace=True)  # 替换第一行中有的nan
     source_df.iloc[:, 1:source_df.shape[1]].fillna('', inplace=True)  # 替换除第一列以外的nan为空
     source_df.dropna(axis=0, how='any', inplace=True)  # 删除含nan的行
@@ -256,8 +261,14 @@ async def variety_sheet(
     source_df = source_df.applymap(str)  # 全转为str类型
     # 新建表保存数据或者原有表更新数据(如果存在,则db_table_or_suffix为表名称,否则为新表后缀编号)
     is_exist, db_table_or_suffix = discriminate_sheet(variety_en, group_id, name_md5)
-    if is_exist:  # 更新旧表
-        sheet_message = update_old_sheet(source_df, db_table_or_suffix)
+    if is_exist:  # 更新旧表（存在且为日期序列数据,非日期序列直接重建表）
+        if is_dated:  # 日期序列
+            sheet_message = update_old_sheet(source_df, db_table_or_suffix)  # 更新时间序列旧表
+        else:  # 非日期序列,删除旧表并新建数据
+            db_table_or_suffix = db_table_or_suffix.split('_')[-1]
+            sheet_message = save_new_sheet(variety_en, sheet_headers, db_table_or_suffix, source_df)
+            sheet_message['max_date'] = '-'
+            sheet_message['min_date'] = '-'
         sheet_message["update_by"] = user_id
         sheet_message['variety_en'] = variety_en
         sheet_message["group_id"] = group_id
@@ -279,13 +290,14 @@ async def variety_sheet(
         sheet_message["group_id"] = group_id
         sheet_message["sheet_name"] = sheet_name
         sheet_message["name_md5"] = name_md5
+        sheet_message["is_dated"] = is_dated
         # 新增品种表的数据记录
         with MySqlZ() as cursor:
             cursor.execute(
                 "INSERT INTO industry_user_sheet (creator,update_by,variety_en,group_id,sheet_name,name_md5,"
-                "db_table,min_date,max_date,update_count,suffix) "
+                "db_table,min_date,max_date,update_count,suffix,is_dated) "
                 "VALUES (%(creator)s,%(update_by)s,%(variety_en)s,%(group_id)s,%(sheet_name)s,%(name_md5)s,"
-                "%(db_table)s,%(min_date)s,%(max_date)s,%(update_count)s,%(suffix)s);",
+                "%(db_table)s,%(min_date)s,%(max_date)s,%(update_count)s,%(suffix)s,%(is_dated)s);",
                 sheet_message
             )
     return {"message": "数据上传成功!", "update_count": sheet_message["update_count"]}
