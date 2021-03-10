@@ -169,7 +169,7 @@ def replace_zero_to_middle_line(data_str):
         return '-' if value == 0 else data_str
 
 
-def sheet_data_handler(base_option, source_dataframe):
+def sheet_data_handler(base_option, source_dataframe, is_dated):
     """ 根据图形配置处理表格的数据 """
     chart_type = base_option["chart_category"]
     # 取数据的表头(表头名称用于作图时的图例)
@@ -195,14 +195,17 @@ def sheet_data_handler(base_option, source_dataframe):
         if not contain_zero:  # 数据不含0,去0处理
             values_df[column_index] = values_df[column_index].apply(replace_zero_to_middle_line)
             # values_df = values_df[values_df[column_index] != "0"]
-    values_df = values_df.sort_values(by="column_0")  # 最后进行数据从小到大的时间排序
+    # 日期序列进行排序
+    if is_dated:
+        values_df = values_df.sort_values(by="column_0")  # 最后进行数据从小到大的时间排序
     # table_show_df.reset_index(inplace=True)  # 重置索引,让排序生效(赋予row正确的值。可不操作,转为json后,索引无用处了)
     #
     # 普通图形返回结果数据
     if chart_type == "normal":
-        # 处理横轴的格式
-        date_length = base_option["x_axis"]["date_length"]
-        values_df["column_0"] = values_df["column_0"].apply(lambda x: x[:date_length])
+        # 日期序列处理横轴的格式
+        if is_dated:
+            date_length = base_option["x_axis"]["date_length"]
+            values_df["column_0"] = values_df["column_0"].apply(lambda x: x[:date_length])
         values_json = values_df.to_dict(orient="record")
     elif chart_type == "season":  # 季节图形将数据分为{year1: values1, year2: values2}型
         values_json = get_season_chart_source(values_df.copy())
@@ -216,7 +219,7 @@ async def chart_option_values(chart_id: int):
     # 查询出表格和配置
     with MySqlZ() as cursor:
         cursor.execute(
-            "SELECT charttb.id,charttb.title,charttb.option_file,sheettb.db_table "
+            "SELECT charttb.id,charttb.title,charttb.option_file,sheettb.db_table,sheettb.is_dated "
             "FROM industry_user_chart AS charttb "
             "INNER JOIN industry_user_sheet AS sheettb "
             "ON charttb.sheet_id=sheettb.id AND charttb.id=%s;",
@@ -227,6 +230,7 @@ async def chart_option_values(chart_id: int):
         return {}
     # 获取配置
     option_file = os.path.join(FILE_STORAGE, chart_info["option_file"])
+    is_dated = chart_info['is_dated']
     if not os.path.exists(option_file):
         return {}
     with open(option_file, 'r') as fp:
@@ -237,7 +241,7 @@ async def chart_option_values(chart_id: int):
         cursor.execute("SELECT * FROM %s;" % sheet_table)
         sheet_data = cursor.fetchall()
     # 处理数据
-    chart_values, headers_dict = sheet_data_handler(base_option, pd.DataFrame(sheet_data))
+    chart_values, headers_dict = sheet_data_handler(base_option, pd.DataFrame(sheet_data), is_dated)
     return {"message": "获取数据成功!", "chart_type": base_option["chart_category"], "base_option": base_option,
             "chart_values": chart_values, "sheet_headers": headers_dict}
 

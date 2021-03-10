@@ -123,9 +123,6 @@ def save_new_sheet(
     new_values = source_df.to_dict(orient="records")
     # 日志记录用户创建表
     logger.info('用户新建表:\n{}'.format(create_statement))
-    print(drop_table_statement)
-    print(create_statement)
-    print(insert_statement)
     with VarietySheetDB() as cursor:
         cursor.execute(drop_table_statement)  # 如果之前有创建成功的表但记录出错则可删除
         cursor.execute(create_statement)  # 创建数据表
@@ -321,7 +318,7 @@ async def get_variety_sheet(
             "SELECT st.id,DATE_FORMAT(st.create_time,'%%Y-%%m-%%d') AS create_date,"
             "DATE_FORMAT(st.update_time,'%%Y-%%m-%%d %%H:%%i') AS update_date,st.creator,st.update_by,"
             "st.variety_en,st.group_id,st.sheet_name,st.min_date,st.max_date,st.update_count,st.origin,"
-            "st.note,st.is_private,"
+            "st.note,st.is_private,st.is_dated,"
             "(SELECT COUNT(id) FROM industry_user_chart WHERE st.id=sheet_id) AS chart_count "
             "FROM industry_user_sheet AS st "
             "WHERE st.variety_en=%s AND "
@@ -344,17 +341,18 @@ async def get_variety_sheet(
 async def sheet_source_values(sheet_id: int):
     with MySqlZ() as cursor:
         cursor.execute(
-            "SELECT `id`,sheet_name,db_table FROM industry_user_sheet WHERE id=%s;", (sheet_id, )
+            "SELECT `id`,sheet_name,db_table,is_dated FROM industry_user_sheet WHERE id=%s;", (sheet_id, )
         )
         sheet_info = cursor.fetchone()
     values = []
     if sheet_info:
+        is_dated = sheet_info['is_dated']
         with VarietySheetDB() as cursor:
             cursor.execute(
                 "SELECT * FROM %s;" % sheet_info["db_table"]
             )
             values = cursor.fetchall()
-    return {"message": "数据查询成功!", "sheet_values": values}
+    return {"message": "数据查询成功!", "sheet_values": values, "is_dated": is_dated}
 
 
 @sheet_router.put("/sheet/suffix-swap/", summary="交换表排序后缀")
@@ -481,20 +479,24 @@ async def modify_sheet_one_record(
 async def get_sheet_last_record(sheet_id: int):
     # 获取数据表的名称
     with MySqlZ() as cursor:
-        cursor.execute("SELECT id,db_table FROM industry_user_sheet WHERE id=%s;", (sheet_id, ))
+        cursor.execute("SELECT id,db_table,is_dated FROM industry_user_sheet WHERE id=%s;", (sheet_id, ))
         table_obj = cursor.fetchone()
         if not table_obj:
             return {'message': '查询成功!', 'record': []}
         db_table = table_obj['db_table']
+        is_dated = table_obj['is_dated']
     # 获取最大日期的一行数据
-    query_row = "SELECT * FROM {} WHERE column_0=(SELECT MAX(column_0) FROM {} WHERE id>1);".format(db_table, db_table)
+    if is_dated:
+        query_row = "SELECT * FROM {} WHERE column_0=(SELECT MAX(column_0) FROM {} WHERE id>1);".format(db_table, db_table)
+    else:
+        query_row = "SELECT * FROM {} WHERE id=(SELECT MAX(id) FROM {});".format(db_table, db_table)
     query_header = "SELECT * FROM {} WHERE id=1;".format(db_table)
     with VarietySheetDB() as vs_cursor:
         vs_cursor.execute(query_row)
         max_date_row = vs_cursor.fetchone()
         vs_cursor.execute(query_header)
         header_row = vs_cursor.fetchone()
-    return {'message': '查询成功!', 'last_row': max_date_row, 'header_row': header_row}
+    return {'message': '查询成功!', 'last_row': max_date_row, 'header_row': header_row, 'is_dated': is_dated}
 
 
 @sheet_router.post('/sheet/{sheet_id}/record/add/', summary="用户为指定表添加记录")
@@ -513,11 +515,12 @@ async def add_sheet_record(sheet_id: int, user_token: str = Depends(oauth2_schem
     df = pd.DataFrame(body_data, columns=columns)
     df.drop_duplicates(subset=['column_0'], inplace=True, keep='first')
     with MySqlZ() as cursor:
-        cursor.execute("SELECT id,db_table FROM industry_user_sheet WHERE id=%s;", (sheet_id, ))
+        cursor.execute("SELECT id,db_table,is_dated FROM industry_user_sheet WHERE id=%s;", (sheet_id, ))
         sheet_obj = cursor.fetchone()
         if not sheet_obj:
             return {'message': '数据表不存在,添加错误!', 'new_count': 0}
         db_table = sheet_obj['db_table']
+        is_dated = sheet_obj['is_dated']
         with VarietySheetDB() as v_cursor:
             # 查询表头截取数据
             v_cursor.execute("SELECT * FROM %s WHERE id=1;" % db_table)
@@ -526,6 +529,12 @@ async def add_sheet_record(sheet_id: int, user_token: str = Depends(oauth2_schem
             columns_indexes = ["column_{}".format(i) for i in range(len(sheet_headers_dict) - 1)]  # 减1为id列
             # 截取数据
             df = df.reindex(columns=columns_indexes, fill_value='')
+            # 日期序列将第一列转为日期类型,非日期序列,第一列不做要求
+            if is_dated:
+                try:
+                    df['column_0'] = df['column_0'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d').strftime('%Y-%m-%d'))
+                except Exception as e:
+                    return {'message': '日期类型的日期列格式错误,添加失败!', 'new_count': 0}
             add_count = 0
             if not df.empty:
                 # 插入数据
@@ -546,6 +555,9 @@ async def add_sheet_record(sheet_id: int, user_token: str = Depends(oauth2_schem
             v_cursor.execute(
                 "SELECT MIN(column_0) AS min_date,MAX(column_0) AS max_date FROM %s WHERE id>2;" % db_table)
             date_msg = v_cursor.fetchone()
+            if not is_dated:  # 非日期类型无最大小值
+                date_msg['min_date'] = '-'
+                date_msg['max_date'] = '-'
         if date_msg['min_date'] and date_msg['max_date']:
             # 更新表的信息
             sheet_message = {'min_date': date_msg['min_date'], 'max_date': date_msg['max_date']}
