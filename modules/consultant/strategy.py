@@ -80,5 +80,5 @@ async def delete_strategy(strategy_id: int, user_token: str = Query(...)):
             "DELETE FROM product_strategy WHERE id=%s AND author_id=%s;",
             (strategy_id, user_id)
         )
-    return {'message': '删除成功!'}
+    return {'message': '删除成功!如不是您创建的策略,刷新后仍会存在!'}
 

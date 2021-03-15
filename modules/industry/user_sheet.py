@@ -236,6 +236,7 @@ async def variety_sheet(
     body_variety_en = source_data.variety_en
     group_id = source_data.group_id
     sheet_name = source_data.sheet_name
+    is_dated = source_data.is_dated
     name_md5 = md5(sheet_name.encode("utf-8")).hexdigest()
     sheet_headers = source_data.sheet_headers
     sheet_values = source_data.sheet_values
@@ -247,7 +248,8 @@ async def variety_sheet(
     source_df = pd.DataFrame(sheet_values)
     if len(sheet_headers) != len(source_df.columns):
         raise HTTPException(status_code=400, detail="Invalid Values!")
-    source_df["column_0"] = source_df["column_0"].apply(verify_date)
+    if is_dated:
+        source_df["column_0"] = source_df["column_0"].apply(verify_date)
     source_df.iloc[:1].fillna('', inplace=True)  # 替换第一行中有的nan
     source_df.iloc[:, 1:source_df.shape[1]].fillna('', inplace=True)  # 替换除第一列以外的nan为空
     source_df.dropna(axis=0, how='any', inplace=True)  # 删除含nan的行
@@ -256,8 +258,14 @@ async def variety_sheet(
     source_df = source_df.applymap(str)  # 全转为str类型
     # 新建表保存数据或者原有表更新数据(如果存在,则db_table_or_suffix为表名称,否则为新表后缀编号)
     is_exist, db_table_or_suffix = discriminate_sheet(variety_en, group_id, name_md5)
-    if is_exist:  # 更新旧表
-        sheet_message = update_old_sheet(source_df, db_table_or_suffix)
+    if is_exist:  # 更新旧表（存在且为日期序列数据,非日期序列直接重建表）
+        if is_dated:  # 日期序列
+            sheet_message = update_old_sheet(source_df, db_table_or_suffix)  # 更新时间序列旧表
+        else:  # 非日期序列,删除旧表并新建数据
+            db_table_or_suffix = db_table_or_suffix.split('_')[-1]
+            sheet_message = save_new_sheet(variety_en, sheet_headers, db_table_or_suffix, source_df)
+            sheet_message['max_date'] = '-'
+            sheet_message['min_date'] = '-'
         sheet_message["update_by"] = user_id
         sheet_message['variety_en'] = variety_en
         sheet_message["group_id"] = group_id
@@ -279,13 +287,14 @@ async def variety_sheet(
         sheet_message["group_id"] = group_id
         sheet_message["sheet_name"] = sheet_name
         sheet_message["name_md5"] = name_md5
+        sheet_message["is_dated"] = is_dated
         # 新增品种表的数据记录
         with MySqlZ() as cursor:
             cursor.execute(
                 "INSERT INTO industry_user_sheet (creator,update_by,variety_en,group_id,sheet_name,name_md5,"
-                "db_table,min_date,max_date,update_count,suffix) "
+                "db_table,min_date,max_date,update_count,suffix,is_dated) "
                 "VALUES (%(creator)s,%(update_by)s,%(variety_en)s,%(group_id)s,%(sheet_name)s,%(name_md5)s,"
-                "%(db_table)s,%(min_date)s,%(max_date)s,%(update_count)s,%(suffix)s);",
+                "%(db_table)s,%(min_date)s,%(max_date)s,%(update_count)s,%(suffix)s,%(is_dated)s);",
                 sheet_message
             )
     return {"message": "数据上传成功!", "update_count": sheet_message["update_count"]}
@@ -309,7 +318,7 @@ async def get_variety_sheet(
             "SELECT st.id,DATE_FORMAT(st.create_time,'%%Y-%%m-%%d') AS create_date,"
             "DATE_FORMAT(st.update_time,'%%Y-%%m-%%d %%H:%%i') AS update_date,st.creator,st.update_by,"
             "st.variety_en,st.group_id,st.sheet_name,st.min_date,st.max_date,st.update_count,st.origin,"
-            "st.note,st.is_private,"
+            "st.note,st.is_private,st.is_dated,"
             "(SELECT COUNT(id) FROM industry_user_chart WHERE st.id=sheet_id) AS chart_count "
             "FROM industry_user_sheet AS st "
             "WHERE st.variety_en=%s AND "
@@ -332,17 +341,18 @@ async def get_variety_sheet(
 async def sheet_source_values(sheet_id: int):
     with MySqlZ() as cursor:
         cursor.execute(
-            "SELECT `id`,sheet_name,db_table FROM industry_user_sheet WHERE id=%s;", (sheet_id, )
+            "SELECT `id`,sheet_name,db_table,is_dated FROM industry_user_sheet WHERE id=%s;", (sheet_id, )
         )
         sheet_info = cursor.fetchone()
     values = []
     if sheet_info:
+        is_dated = sheet_info['is_dated']
         with VarietySheetDB() as cursor:
             cursor.execute(
                 "SELECT * FROM %s;" % sheet_info["db_table"]
             )
             values = cursor.fetchall()
-    return {"message": "数据查询成功!", "sheet_values": values}
+    return {"message": "数据查询成功!", "sheet_values": values, "is_dated": is_dated}
 
 
 @sheet_router.put("/sheet/suffix-swap/", summary="交换表排序后缀")
@@ -469,20 +479,24 @@ async def modify_sheet_one_record(
 async def get_sheet_last_record(sheet_id: int):
     # 获取数据表的名称
     with MySqlZ() as cursor:
-        cursor.execute("SELECT id,db_table FROM industry_user_sheet WHERE id=%s;", (sheet_id, ))
+        cursor.execute("SELECT id,db_table,is_dated FROM industry_user_sheet WHERE id=%s;", (sheet_id, ))
         table_obj = cursor.fetchone()
         if not table_obj:
             return {'message': '查询成功!', 'record': []}
         db_table = table_obj['db_table']
+        is_dated = table_obj['is_dated']
     # 获取最大日期的一行数据
-    query_row = "SELECT * FROM {} WHERE column_0=(SELECT MAX(column_0) FROM {} WHERE id>1);".format(db_table, db_table)
+    if is_dated:
+        query_row = "SELECT * FROM {} WHERE column_0=(SELECT MAX(column_0) FROM {} WHERE id>1);".format(db_table, db_table)
+    else:
+        query_row = "SELECT * FROM {} WHERE id=(SELECT MAX(id) FROM {});".format(db_table, db_table)
     query_header = "SELECT * FROM {} WHERE id=1;".format(db_table)
     with VarietySheetDB() as vs_cursor:
         vs_cursor.execute(query_row)
         max_date_row = vs_cursor.fetchone()
         vs_cursor.execute(query_header)
         header_row = vs_cursor.fetchone()
-    return {'message': '查询成功!', 'last_row': max_date_row, 'header_row': header_row}
+    return {'message': '查询成功!', 'last_row': max_date_row, 'header_row': header_row, 'is_dated': is_dated}
 
 
 @sheet_router.post('/sheet/{sheet_id}/record/add/', summary="用户为指定表添加记录")
@@ -501,11 +515,12 @@ async def add_sheet_record(sheet_id: int, user_token: str = Depends(oauth2_schem
     df = pd.DataFrame(body_data, columns=columns)
     df.drop_duplicates(subset=['column_0'], inplace=True, keep='first')
     with MySqlZ() as cursor:
-        cursor.execute("SELECT id,db_table FROM industry_user_sheet WHERE id=%s;", (sheet_id, ))
+        cursor.execute("SELECT id,db_table,is_dated FROM industry_user_sheet WHERE id=%s;", (sheet_id, ))
         sheet_obj = cursor.fetchone()
         if not sheet_obj:
             return {'message': '数据表不存在,添加错误!', 'new_count': 0}
         db_table = sheet_obj['db_table']
+        is_dated = sheet_obj['is_dated']
         with VarietySheetDB() as v_cursor:
             # 查询表头截取数据
             v_cursor.execute("SELECT * FROM %s WHERE id=1;" % db_table)
@@ -514,6 +529,12 @@ async def add_sheet_record(sheet_id: int, user_token: str = Depends(oauth2_schem
             columns_indexes = ["column_{}".format(i) for i in range(len(sheet_headers_dict) - 1)]  # 减1为id列
             # 截取数据
             df = df.reindex(columns=columns_indexes, fill_value='')
+            # 日期序列将第一列转为日期类型,非日期序列,第一列不做要求
+            if is_dated:
+                try:
+                    df['column_0'] = df['column_0'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d').strftime('%Y-%m-%d'))
+                except Exception as e:
+                    return {'message': '日期类型的日期列格式错误,添加失败!', 'new_count': 0}
             add_count = 0
             if not df.empty:
                 # 插入数据
@@ -534,6 +555,9 @@ async def add_sheet_record(sheet_id: int, user_token: str = Depends(oauth2_schem
             v_cursor.execute(
                 "SELECT MIN(column_0) AS min_date,MAX(column_0) AS max_date FROM %s WHERE id>2;" % db_table)
             date_msg = v_cursor.fetchone()
+            if not is_dated:  # 非日期类型无最大小值
+                date_msg['min_date'] = '-'
+                date_msg['max_date'] = '-'
         if date_msg['min_date'] and date_msg['max_date']:
             # 更新表的信息
             sheet_message = {'min_date': date_msg['min_date'], 'max_date': date_msg['max_date']}
