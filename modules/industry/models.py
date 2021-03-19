@@ -67,5 +67,6 @@ class ModifyChartOptionItem(BaseModel):
     start_year: str
     end_year: str
     decipherment: str
+    watermark: str
 
 

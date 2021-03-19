@@ -433,16 +433,24 @@ async def delete_sheet(sheet_id: int, user_token: str = Depends(oauth2_scheme)):
 async def modify_sheet_public(
         sheet_id: int,
         user_token=Depends(oauth2_scheme),
-        is_private: int = Body(..., ge=0, le=1, embed=True)
+        is_private: int = Body(..., ge=0, le=1, embed=True),
+        is_deep: int = Query(0, ge=0, le=1)
 ):
     user_id, _ = decipher_user_token(user_token)
     if not user_id:
         return {"message": "登录过期修改失败!"}
     with MySqlZ() as cursor:
+        # 设置表为私有
         cursor.execute(
             "UPDATE industry_user_sheet SET is_private=%s "
             "WHERE id=%s AND creator=%s;", (is_private, sheet_id, user_id)
         )
+        if is_deep:
+            # 将当前表所关联的图形设置为相关状态
+            cursor.execute(
+                "UPDATE industry_user_chart SET is_private=%s "
+                "WHERE sheet_id=%s AND creator=%s;", (is_private, sheet_id, user_id)
+            )
     return {"message": "修改成功!"}
 
 

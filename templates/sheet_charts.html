@@ -51,23 +51,56 @@ function getStrWidth(str, px){
 // 生成水印
 function generateGraphic(watermark){
     if(watermark === '' || watermark === undefined){return null}
+    // else{
+    //     return {
+    //         type: 'group',
+    //         rotation: Math.PI / 4,
+    //         bounding: 'raw',
+    //         right: 80,
+    //         bottom: 80,
+    //         z: -100,
+    //         children: [
+    //             {
+    //                 type: 'rect',
+    //                 left: 'center',
+    //                 top: 'center',
+    //                 z:-100,
+    //                 shape:{width: 400, height: 35},
+    //                 style:{fill: 'rgba(0,0,0,0.4)'}
+    //             },
+    //             {
+    //                 type: 'text',
+    //                 left: 'center',
+    //                 top: 'center',
+    //                 z: -100,
+    //                 style: {
+    //                     fill: 'rgba(255,255,255,0.9)',
+    //                     text: watermark,
+    //                     font: 'bold 22px Microsoft YaHei'
+    //                 }
+    //             }
+    //         ]
+    //     }
+    // }
     else{
-        return {
+        return [{
             type: 'group',
             rotation: Math.PI / 4,
             bounding: 'raw',
-            right: 80,
-            bottom: 80,
+            // right: 80,
+            // bottom: 80,
+            left: '35%',
+            top: '25%',
             z: -100,
             children: [
-                {
-                    type: 'rect',
-                    left: 'center',
-                    top: 'center',
-                    z:-100,
-                    shape:{width: 400, height: 35},
-                    style:{fill: 'rgba(0,0,0,0.4)'}
-                },
+                // {
+                //     type: 'rect',
+                //     left: 'center',
+                //     top: 'center',
+                //     z:-100,
+                //     shape:{width: 400, height: 35},
+                //     style:{fill: 'rgba(0,0,0,0.4)'}
+                // },
                 {
                     type: 'text',
                     left: 'center',
@@ -76,11 +109,42 @@ function generateGraphic(watermark){
                     style: {
                         fill: 'rgba(255,255,255,0.9)',
                         text: watermark,
-                        font: 'bold 22px Microsoft YaHei'
+                        font: '22px Microsoft YaHei'
                     }
                 }
             ]
-        }
+        }, {
+            type: 'group',
+            rotation: Math.PI / 4,
+            bounding: 'raw',
+            // right: 80,
+            // bottom: 80,
+            right: '35%',
+            top: '50%',
+            z: -100,
+            children: [
+                // {
+                //     type: 'rect',
+                //     left: 'center',
+                //     top: 'center',
+                //     z:-100,
+                //     shape:{width: 400, height: 35},
+                //     style:{fill: 'rgba(0,0,0,0.4)'}
+                // },
+                    {
+                        type: 'text',
+                        left: 'center',
+                        top: 'center',
+                        z: -100,
+                        style: {
+                            fill: 'rgba(255,255,255,0.9)',
+                            text: watermark,
+                            font: '22px Microsoft YaHei'
+                        }
+                    }
+                ]
+            }
+        ]
     }
 }
 
@@ -218,6 +282,11 @@ function generateOption(baseOption, sourceData, sheetHeaders){
     // grid 的bottom值需 = 图例所占的行数 * 每行所占的高度14 + 22 // 其中27为伸缩条的高度20 + 间距2 + 顶部距离5
     let extraTop = 5
     if (legendRowCount < 2){extraTop = 10}
+    // 处理右轴分割线
+    let yaxises = baseOption.y_axis
+    if (yaxises.length > 1){
+        yaxises[1].splitLine={show: false}
+    }
     return {
         grid: {
             top: chartTitle["font_size"] + 15,
