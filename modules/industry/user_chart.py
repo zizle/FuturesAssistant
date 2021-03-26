@@ -361,6 +361,7 @@ async def chart_base_info(chart_id: int):
         chart["date_length"] = x_axises["date_length"]
         chart["start_year"] = chart_options["start_year"]
         chart["end_year"] = chart_options["end_year"]
+        chart["watermark"] = chart_options["watermark"]
 
     return {"message": "查询成功!", "data": chart}
 
@@ -395,6 +396,7 @@ async def modify_chart_option(chart_id: int, option_item: ModifyChartOptionItem 
         x_axises['date_length'] = option_item.date_length
         option_json['start_year'] = option_item.start_year if option_item.start_year else '0'
         option_json['end_year'] = option_item.end_year if option_item.end_year else '0'
+        option_json['watermark'] = option_item.watermark
         # 写入数据库(修改解说)
         m_cursor.execute(
             "UPDATE industry_user_chart SET decipherment=%s WHERE id=%s;", (option_item.decipherment, chart_id)
@@ -432,6 +434,11 @@ async def chart_display(
 
     with MySqlZ() as cursor:
         if is_principal is not None and is_petit is None and is_private is None:
+            # 管理员设置为is_principal=2则可直接开启
+            cursor.execute('SELECT id,role FROM user_user WHERE id=%s;', (user_id, ))
+            user_role = cursor.fetchone()['role']
+            if user_role in ['superuser', 'operator']:
+                is_principal = 2
             update_sql = "UPDATE industry_user_chart SET is_principal=%s WHERE id=%s;"
             cursor.execute(update_sql, (str(is_principal), chart_id))
         elif is_petit is not None and is_principal is None and is_private is None:

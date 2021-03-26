@@ -59,7 +59,7 @@ async def get_update_folder(
     client = encryption_uuid(client, user_id)  # 加密uuid与数据库对应
     with MySqlZ() as cursor:
         cursor.execute(
-            "SELECT varitytb.variety_name,grouptb.group_name,foldertb.folder,foldertb.is_dated "
+            "SELECT foldertb.id,varitytb.variety_name,grouptb.group_name,foldertb.folder,foldertb.is_dated "
             "FROM industry_user_folder AS foldertb,basic_variety AS varitytb,industry_sheet_group AS grouptb "
             "WHERE foldertb.variety_en=varitytb.variety_en "
             "AND foldertb.group_id=grouptb.id AND "
@@ -70,3 +70,17 @@ async def get_update_folder(
         folders = cursor.fetchall()
     return {"message": "查询成功!", "folders": folders}
 
+
+@folder_router.delete('/industry/user-folder/{fid}/', summary='用户删除配置的文件夹')
+async def delete_folder(user_token: str = Depends(oauth2_scheme),
+                        fid: int = 0):
+    user_id, _ = decipher_user_token(user_token)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Unknown User")
+    if fid > 0:
+        # 删除配置
+        with MySqlZ() as cursor:
+            cursor.execute(
+                "DELETE FROM industry_user_folder WHERE id=%s AND user_id=%s LIMIT 1;", (fid, user_id),
+            )
+    return {'message': '删除成功!'}
