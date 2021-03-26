@@ -49,7 +49,7 @@ function getStrWidth(str, px){
 }
 
 // 生成水印
-function generateGraphic(watermark){
+function generateGraphic(watermark, bottom){
     if(watermark === '' || watermark === undefined){return null}
     // else{
     //     return {
@@ -148,6 +148,11 @@ function generateGraphic(watermark){
     }
 }
 
+// 获取正常折线图的数据点
+function getLineSeriesPoints(sourceData, column_index) {
+    return sourceData.map(item=>{return parseFloat(item[column_index])})
+}
+
 // 生成series和图例的函数
 function getSeriesLegend(seriesData, sourceData, sheetHeaders) {
     let len = seriesData.length;
@@ -155,6 +160,7 @@ function getSeriesLegend(seriesData, sourceData, sheetHeaders) {
     let legend = {bottom: 18, "data":[]};
     for(let i = 0; i < len; i++) {
         let optData = seriesData[i];
+        let points = getLineSeriesPoints(sourceData, optData.column_index)
         let seriesOption = {
             type: optData.chart_type,
             // name: optData.chart_name,
@@ -162,8 +168,19 @@ function getSeriesLegend(seriesData, sourceData, sheetHeaders) {
             name: sheetHeaders[optData.column_index],
             yAxisIndex: optData.axis_index,
             connectNulls: true,
-            data: sourceData.map(item=>{return parseFloat(item[optData.column_index])})
+            // data: sourceData.map(item=>{return parseFloat(item[optData.column_index])})
+            data: points
         };
+        // 改为单点
+        if (points.length === 1){
+            seriesOption = {
+                type: 'scatter',
+                name: sheetHeaders[optData.column_index],
+                yAxisIndex: 0,
+                symbolSize: 8,
+                data: points
+            }
+        }
         seriesArray.push(seriesOption);
         legend.data.push(sheetHeaders[optData.column_index],);
     }
@@ -171,6 +188,11 @@ function getSeriesLegend(seriesData, sourceData, sheetHeaders) {
         seriesData: seriesArray,
         legendData: legend
     }
+}
+
+// 获取季节图数据点
+function getSeriesPoints(yearData,column_index) {
+    return yearData.map(item=>{return [item["column_0"], item[column_index]]})
 }
 
 // 获取图形序列和图例
@@ -181,14 +203,26 @@ function getSeasonSeriesLegend(seriesData, sourceData){
     for(let yearKey in sourceData){
         if (yearKey === "xAxisData"){continue}
         let yearData = sourceData[yearKey];
+        let seriesPoints = getSeriesPoints(yearData, optData.column_index)
         let seriesOption = {
             type: "line",
             symbol: 'circle',
             name: yearKey,
             yAxisIndex: 0,
             connectNulls: true,
-            data: yearData.map(item=>{return [item["column_0"], item[optData.column_index]]})
+            // data: yearData.map(item=>{return [item["column_0"], item[optData.column_index]]})
+            data: seriesPoints
         };
+        // 改为单点
+        if (seriesPoints.length === 1){
+            seriesOption = {
+                type: 'scatter',
+                name: yearKey,
+                yAxisIndex: 0,
+                symbolSize: 8,
+                data: seriesPoints
+            }
+        }
         seriesArray.push(seriesOption);
         legend.data.push(yearKey)
     }
@@ -287,12 +321,13 @@ function generateOption(baseOption, sourceData, sheetHeaders){
     if (yaxises.length > 1){
         yaxises[1].splitLine={show: false}
     }
+    let bottomMargin = legendRowCount * 14 + (legendRowCount - 1) * 10 + 22 + extraTop
     return {
         grid: {
             top: chartTitle["font_size"] + 15,
             left: 10,
             right: 10,
-            bottom: legendRowCount * 14 + (legendRowCount - 1) * 10 + 22 + extraTop,
+            bottom: bottomMargin,
             show: false,
             containLabel: true
         },
