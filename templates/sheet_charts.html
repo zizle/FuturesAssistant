@@ -376,10 +376,27 @@ function generateOption(baseOption, sourceData, sheetHeaders){
     <div class="chart-container">
         <div style="border-bottom: 1px solid #222222">
             <div id="chart_{{ chart.id }}" style="height:337px; width: 600px;"></div>
+            <div style="margin: 10px 0;color:#e79442;font-weight: bold">
+                <div style="text-indent: 2em;line-height:25px; font-size: 13px" id="compare{{chart.id}}">
+
+                </div>
+            </div>
             <div style="margin-bottom: 10px;color:#2f5574;font-weight: bold">
                 <div style="text-indent: 2em;line-height:25px; font-size: 13px">{{chart.decipherment}}</div>
             </div>
     <script>
+
+        $(function () {
+            let comId =  document.getElementById('compare{{chart.id}}');
+            $.ajax({
+                type: 'GET',
+                url: host + 'chart-compare/{{chart.id}}/', // 请求对比解读
+                dataType: 'json',
+                success: function (res) {
+                    comId.innerHTML = res.compare_text
+                }
+            })
+        })
     $(function () {
         let charDiv = document.getElementById('chart_{{chart.id}}');
         let chartObj = echarts.init(charDiv, 'red', {render:'canvas'});

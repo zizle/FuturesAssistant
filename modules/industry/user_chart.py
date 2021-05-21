@@ -17,9 +17,10 @@ API-9: 删除图形及相关配置文件
 import re
 import os
 import json
+import jsonpath
 import pandas as pd
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, Body, Query
+from fastapi import APIRouter, Depends, HTTPException, Body, Query, Path
 from fastapi.templating import Jinja2Templates
 from fastapi.requests import Request
 from utils.verify import oauth2_scheme, decipher_user_token
@@ -27,6 +28,7 @@ from utils.encryptor import generate_chart_option_filepath
 from db.mysql_z import MySqlZ, VarietySheetDB
 from configs import FILE_STORAGE, logger
 from .models import ChartOption, SwapSuffixItem, ModifyChartOptionItem
+from .compare_util import week_compare, month_compare, year_compare
 
 chart_router = APIRouter()
 
@@ -249,6 +251,62 @@ async def chart_option_values(chart_id: int):
 """ 返回图形配置和数据结束 """
 
 
+@chart_router.get('/chart-compare/{chart_id}/', summary='获取图形的对比解读描述')
+async def chart_compares_description(chart_id: int = Path(..., ge=1)):
+    # 通过chart_id获取option
+    with MySqlZ() as cursor:
+        cursor.execute('SELECT id,option_file,sheet_id FROM industry_user_chart WHERE id=%s;', (chart_id,))
+        cur_obj = cursor.fetchone()
+        option_file = cur_obj['option_file']
+        sheet_id = cur_obj['sheet_id']
+        # print('sheet_id', sheet_id)
+        # 查询db_name
+        cursor.execute('SELECT id,db_table,is_dated FROM industry_user_sheet WHERE id=%s;', (sheet_id, ))
+        sheet_obj = cursor.fetchone()
+        db_name = sheet_obj.get('db_table', None)
+        is_dated = sheet_obj.get('is_dated', None)
+    if not db_name or not is_dated:
+        return {'message': '查询成功,没查询到对应数据表或非日期序列数据无法对比!', 'compare_text': ''}
+    filepath = os.path.join(FILE_STORAGE, option_file)
+    with open(filepath, 'r') as fp:
+        option = json.load(fp)
+    # 读取对比列，进行数据对比
+    compare = option.get('compares', {})
+    if not compare:
+        return {'message': '查询成功,未设置对比项!', 'compare_text': ''}
+    # 查询表数据
+    # print('db_name', db_name)
+    with VarietySheetDB() as v_cursor:
+        # 查id=1的headers
+        v_cursor.execute(f'SELECT * FROM {db_name} WHERE id=1;')
+        col_headers = v_cursor.fetchone()
+        # 查询至少近一年数据
+        v_cursor.execute(f'SELECT * FROM {db_name} WHERE id>2 ORDER BY column_0 DESC LIMIT 360;')
+        sheet_data = v_cursor.fetchall()
+    df = pd.DataFrame(sheet_data)
+    # print(df)
+    # print(compare)
+    # print(col_headers)
+    # 分析数据
+    week_text = ''
+    month_text = ''
+    year_text = ''
+    for key, com_values in compare.items():
+        column_df = df[['column_0', key]].copy()  # 根据key取数小df
+        if 'week' in com_values:
+            week_text += week_compare(column_df.copy(), col_headers[key])
+        if 'month' in com_values:
+            month_text += month_compare(column_df.copy(), col_headers[key])
+        if 'year' in com_values:
+            year_text += year_compare(column_df.copy(), col_headers[key])
+
+        del column_df
+    if not week_text and not month_text and not year_text:
+        return {'message': '查询成功', 'compare_text': ''}
+    # 生成文字返回
+    return {'message': '查询成功', 'compare_text': f'对比解读：{week_text}\n{month_text}\n{year_text}'}
+
+
 @chart_router.get("/industry/chart/", summary="渲染主页的图形")
 async def industry_chart(request: Request):
     with MySqlZ() as cursor:
@@ -327,6 +385,109 @@ async def swap_chart_suffix(
             (swap_item.swap_id, swap_item.to_swap)
         )
     return {"message": "交换排序成功!", "swap_row": swap_item.swap_row}
+
+
+@chart_router.put("/chart/suffix/", summary='设置图形顺序')
+async def set_chart_suffix(move_id: int = Body(...), to_id: int = Body(...)):
+    with MySqlZ() as cursor:
+        # 查询
+        cursor.execute(
+            "SELECT sheet1.id as id1, sheet1.suffix as suffix1,"
+            "sheet2.id as id2, sheet2.suffix as suffix2 "
+            "FROM industry_user_chart AS sheet1 "
+            "JOIN industry_user_chart AS sheet2 "
+            "ON sheet1.id=%s AND sheet2.id=%s;", (move_id, to_id)
+        )
+        relt = cursor.fetchall()[0]
+        if relt['suffix1'] == relt['suffix2']:
+            relt['suffix1'] += 1
+        else:
+            relt['suffix1'] = relt['suffix2'] + 1
+        cursor.execute(
+            "UPDATE industry_user_chart SET suffix=%s WHERE id=%s LIMIT 1;",
+            (relt['suffix1'], relt['id1'])
+        )
+        # 交换
+        # cursor.execute(
+        #     "UPDATE industry_user_chart AS sheet1 "
+        #     "JOIN industry_user_chart AS sheet2 "
+        #     "ON sheet1.id=%s AND sheet2.id=%s "
+        #     "SET sheet1.suffix=sheet2.suffix);",
+        #     (move_id, to_id)
+        # )
+    return {"message": "设置成功!"}
+
+
+@chart_router.get('/chart/sheet-headers/', summary='图形所对应表的列名称')
+async def get_chart_sheet_headers(sid: int = Query(..., ge=1), cid: int = Query(..., ge=1)):
+    # sid为sheet的id,查询sid的表头列
+    with MySqlZ() as cursor:
+        cursor.execute(
+            'SELECT id,db_table FROM industry_user_sheet WHERE id=%s;', (sid,)
+        )
+        table_name = cursor.fetchone()['db_table']
+        # 查询chart_option
+        cursor.execute('SELECT id,option_file FROM industry_user_chart WHERE id=%s;', (cid,))
+        option_file = cursor.fetchone()['option_file']
+    filepath = os.path.join(FILE_STORAGE, option_file)
+    with open(filepath, 'r') as fp:
+        option = json.load(fp)
+    # 读取对比列，进行数据对比
+    compare = jsonpath.jsonpath(option, '$.compares')
+
+    # 查询table
+    with VarietySheetDB() as v_cursor:
+        v_cursor.execute(f'SELECT * FROM {table_name} WHERE id=1;')
+        columns = v_cursor.fetchone()
+        del columns['id']
+        del columns['column_0']
+    if compare:
+        compare = compare[0]
+    else:
+        compare = {}
+    # print(compare)
+    return {'message': '查询成功!', 'columns': columns, 'compares': compare}
+
+
+@chart_router.post('/chart/{chart_id}/compare/', summary='设置对比解读')
+async def post_chart_compares(chart_id: int = Path(..., ge=1), compare_data: dict = Body(...)):
+    # 通过chart_id找到配置文件，设置对比解读字段，保存
+    with MySqlZ() as cursor:
+        cursor.execute('SELECT id,option_file FROM industry_user_chart WHERE id=%s;', (chart_id,))
+        option_file = cursor.fetchone()['option_file']
+    filepath = os.path.join(FILE_STORAGE, option_file)
+    with open(filepath, 'r') as fp:
+        option = json.load(fp)
+    series_columns = jsonpath.jsonpath(option, '$.series_data..column_index')  # 取被拿来画线的数据列
+    if not series_columns:
+        return {'message': '图形未选择列，无法设置!'}
+    # 不再设置的图形中的列，不能做对比
+    to_delete = []
+    for key in compare_data.keys():
+        if key not in series_columns:
+            to_delete.append(key)
+    for k in to_delete:
+        del compare_data[k]
+    # 取出旧的对比解读设置
+    old_compare = option.get('compares', {})  # option['compares']
+    # print('old_compare', old_compare)
+    # 根据新的一起合并
+    for col_key, value in compare_data.items():
+        old_ = old_compare.get(col_key, None)
+        if not old_:  # 旧设置中不存在
+            old_compare[col_key] = value
+        else:
+            for ov in old_:
+                if ov not in value:
+                    old_.remove(ov)
+            old_compare[col_key] = list(set(old_ + value))
+    # print('new_compare', old_compare)
+    # 设置对比解读字段
+    option['compares'] = old_compare  # 已经在old_compare中直接修改了
+    # 保存文件
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(option, f, indent=4)
+    return {'message': '设置成功!'}
 
 
 @chart_router.get("/chart/{chart_id}/", summary="获取图形的基本信息")
@@ -482,4 +643,5 @@ async def delete_chart(
             os.remove(option_file)
         cursor.execute("DELETE FROM industry_user_chart WHERE id=%s;", (chart_id, ))
         return {"message": "删除成功!"}
+
 

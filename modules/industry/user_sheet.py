@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 from hashlib import md5
-from fastapi import APIRouter, Depends, HTTPException, Body, Query
+from fastapi import APIRouter, Depends, HTTPException, Body, Query, Path
 from utils.verify import oauth2_scheme, decipher_user_token
 from db.mysql_z import MySqlZ, VarietySheetDB
 from configs import FILE_STORAGE, logger
@@ -371,6 +371,37 @@ async def swap_sheet_suffix(
     return {"message": "交换排序成功!", "swap_row": swap_item.swap_row}
 
 
+@sheet_router.put('/sheet/suffix/', summary='设置表的排序')
+async def set_sheet_suffix(move_id: int = Body(...), to_id: int = Body(...)):
+    with MySqlZ() as cursor:
+        # 查询
+        cursor.execute(
+            "SELECT sheet1.id as id1, sheet1.suffix as suffix1,"
+            "sheet2.id as id2, sheet2.suffix as suffix2 "
+            "FROM industry_user_sheet AS sheet1 "
+            "JOIN industry_user_sheet AS sheet2 "
+            "ON sheet1.id=%s AND sheet2.id=%s;", (move_id, to_id)
+        )
+        relt = cursor.fetchall()[0]
+        if relt['suffix1'] == relt['suffix2']:
+            relt['suffix1'] += 1
+        else:
+            relt['suffix1'] = relt['suffix2'] + 1
+        cursor.execute(
+            "UPDATE industry_user_sheet SET suffix=%s WHERE id=%s LIMIT 1;",
+            (relt['suffix1'], relt['id1'])
+        )
+        #
+        # cursor.execute(
+        #     "UPDATE industry_user_sheet AS sheet1 "
+        #     "JOIN industry_user_sheet AS sheet2 "
+        #     "ON sheet1.id=%s AND sheet2.id=%s "
+        #     "SET sheet1.suffix=sheet2.suffix;",
+        #     (move_id, to_id)
+        # )
+    return {'message': '设置成功!'}
+
+
 def delete_variety_sheet(db_table):
     """ 删除数据表的原数据 """
     with VarietySheetDB() as cursor:
@@ -452,6 +483,29 @@ async def modify_sheet_public(
                 "WHERE sheet_id=%s AND creator=%s;", (is_private, sheet_id, user_id)
             )
     return {"message": "修改成功!"}
+
+
+@sheet_router.put('/sheet/{sheet_id}/update/', summary='修改多行数据')
+async def put_sheet_rows(rows: list = Body(...), sheet_id: int = Path(...)):
+    for row_item in rows:
+        del row_item['row_index']
+    # 查询数据表名称
+    with MySqlZ() as cursor:
+        cursor.execute(
+            "SELECT id, db_table FROM industry_user_sheet WHERE id=%s;",
+            (sheet_id, )
+        )
+        table_name = cursor.fetchone()['db_table']
+
+    columns = list(rows[0].keys())
+    columns.remove('id')
+    u_sql = ','.join([f'{c}=%({c})s' for c in columns])
+    u_sql += ' WHERE id=%(id)s;'
+    u_sql = f'UPDATE {table_name} SET ' + u_sql
+
+    with VarietySheetDB() as v_cursor:
+        v_cursor.executemany(u_sql, rows)
+    return {"message": '更新完成!'}
 
 
 @sheet_router.put('/sheet/{sheet_id}/record/{record_id}/', summary='用户修改指定表下的指定记录')
