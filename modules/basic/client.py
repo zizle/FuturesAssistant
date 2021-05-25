@@ -90,5 +90,14 @@ async def modify_client(
     return {"message": "修改{}客户端信息成功!".format(client.client_uuid)}
 
 
+@client_router.post('/logger/', summary='记录程序崩溃日志')
+async def post_client_fetal(body_data: dict = Body(...)):
+    # 保存到数据库中
+    with MySqlZ() as cursor:
+        cursor.execute(
+            'INSERT INTO basic_log (client_uuid, log_text) VALUES (%s, %s);',
+            (body_data['client'], body_data['error'])
+        )
+    return {'message': '保存日志成功!'}
 
 
