@@ -9,6 +9,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from routers import router
 from configs import FILE_STORAGE
+# 连接数据库连接池
+from db import FAConnection
 
 app = FastAPI()
 

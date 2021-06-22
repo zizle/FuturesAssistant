@@ -22,7 +22,6 @@ SYSTEM_EMAIL = "rdyj_fxjc@163.com"
 SYSTEM_EMAIL_AUTH = "LCAWXVQEVNEBBIRF"
 
 
-
 # 日志记录
 def logger_handler(app_dir, log_level):
     # 日志配置
@@ -47,6 +46,14 @@ logger.addHandler(logger_handler(app_dir=APP_DIR, log_level=logging.INFO))
 
 # 数据库配置
 DB_CONFIGS = {
+    # 新版数据库连接(mysqlclient连接池)
+    "fa": {
+        "host": "localhost",
+        "port": 3306,
+        "user": "root",
+        "password": "mysql",
+        "database": "futures_assistant"
+    },
     # 系统主数据库
     "mysql": {
         "host": "localhost",

@@ -55,3 +55,4 @@ async def create_content(article_type: str, content_item: ConsultArticleItem = B
 
     return {'message': '创建成功!'}
 
+
