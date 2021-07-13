@@ -10,21 +10,27 @@ import random
 import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime
-from fastapi import APIRouter, Form, File, UploadFile, Depends, Body, Query, BackgroundTasks
+from fastapi import APIRouter, Form, File, UploadFile, Depends, Body, Query, BackgroundTasks, Path
 from fastapi.encoders import jsonable_encoder
 from fastapi.exception_handlers import HTTPException
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from pymysql.err import IntegrityError
 from utils import verify
 from utils.char_reverse import split_number_en
 from utils.client import encryption_uuid
 from db.redis_z import RedisZ
 from db.mysql_z import MySqlZ
+from db import FAConnection, RedisConnection
 from configs import logger, SYSTEM_EMAIL, SYSTEM_EMAIL_AUTH
-from modules.basic.validate_models import ExchangeLibCN, VarietyGroupCN
+from interfaces.basic.validate_models import ExchangeLibCN, VarietyGroupCN
 from .models import (JwtToken, User, UserInDB, ModuleItem, UserModuleAuthItem, UserClientAuthItem, UserVarietyAuthItem,
                      ModifyPasswordItem, ResetPasswordEmail)
 
+from status import r_status
+from hutool import security
+from interfaces.depends import logged_require
+from configs import ADMIN_FLAG, TOKEN_EXPIRES
 
 passport_router = APIRouter()
 
@@ -184,10 +190,76 @@ async def login_for_access_token(
     }
 
 
+class LoginItem(BaseModel):
+    account: str
+    password: str
+    image_code: str = ''
+    image_code_uuid: str = ''
+    client_uuid: str = ''
+
+
+@passport_router.post('/login.{login_type}/', summary='用户登录')
+async def user_login(login_type: str = Path(...), login_item: LoginItem = Body(...), auto: int = Query(0, ge=0, le=1)):
+    # 验证图片验证码
+    if auto < 1:  # 非自动登录验证图片验证码
+        redis_conn = RedisConnection()
+        real_img_code = redis_conn.get_value(key=f'{login_item.image_code_uuid}')
+        if not real_img_code:
+            return {'code': r_status.VALIDATE_ERROR, 'message': '验证码已失效!', 'token': '', 'access': []}
+        if real_img_code != login_item.image_code:
+            return {'code': r_status.VALIDATE_ERROR, 'message': '验证码错误!', 'token': '', 'access': []}
+
+    account = security.rsa_decrypt(login_item.account, 0)  # 解密手机
+    password = security.rsa_decrypt(login_item.password, 0)  # 解密密码
+
+    if not all([account, password]):
+        return {'code': r_status.VALIDATE_ERROR, 'message': '用户名和密码不能为空!', 'token': '', 'access': []}
+
+    sql = 'SELECT * FROM user_user WHERE phone=%s AND is_active=1;'
+    db = FAConnection(conn_name='User Login')
+    user_list = db.query(sql, [account])
+    token_access = []
+    if login_type == 'backadmin':  # 后台管理登录(角色是superuser和operator的)
+        user_list = list(filter(lambda x: x['role'] in ['superuser', 'operator'], user_list))
+        token_access = [ADMIN_FLAG]
+    elif login_type == 'client':  # 客户端登录
+        pass
+    else:
+        return {'code': r_status.VALIDATE_ERROR, 'message': '登录方式不支持!', 'token': '', 'access': []}
+    if len(user_list) < 1:
+        return {'code': r_status.NOT_CONTENT, 'message': '用户不存在或无权限以此方式登录!', 'token': '', 'access': []}
+    user_obj = user_list[0]
+    # 验证密码
+    password_verified = verify.verify_password(password, user_obj['password_hashed'])
+    if password_verified:
+        token_data = {
+            'uid': user_obj['id'],
+            'access': token_access
+        }
+        # 发放token
+        token = security.create_access_token(token_data, expire_seconds=TOKEN_EXPIRES)
+        return {'code': r_status.SUCCESS, 'message': '登录成功!', 'token': token, 'access': token_access}
+    else:
+        return {'code': r_status.VALIDATE_ERROR, 'message': '用户名或密码错误!', 'token': '', 'access': []}
+
+
+@passport_router.get('/user.info/', summary='使用token获取用户信息')
+async def get_user_information(person: dict = Depends(logged_require)):
+    user_id = person['uid']
+    sql = 'SELECT id,user_code,username,phone,email,role,avatar FROM user_user WHERE id=%s AND is_active=1;'
+    db = FAConnection()
+    user_obj = db.query(sql, [user_id], fetchone=True)
+    if not user_obj:
+        return {'code': r_status.NOT_CONTENT, 'message': '用户不存在!', 'data': {}}
+    user_obj = user_obj[0]
+    user_obj['access'] = person['access']
+    user_obj['nickname'] = user_obj['username'] if user_obj['username'] else user_obj['user_code']
+    return {'code': r_status.SUCCESS, 'message': '获取用户信息成功!', 'data': user_obj}
+
+
 @passport_router.get("/image_code/", summary="图片验证码")
 async def image_code(code_uuid: str):
-    response = StreamingResponse(verify.generate_code_image(code_uuid))
-    return response
+    return StreamingResponse(verify.generate_code_image(code_uuid))
 
 
 @passport_router.get("/user/module-authenticate/", summary="用户当前的模块权限情况")

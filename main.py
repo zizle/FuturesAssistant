@@ -4,17 +4,15 @@
 # @Author: zizle
 
 import os
-from fastapi import FastAPI
+
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-from routers import router
 from configs import FILE_STORAGE
-# 连接数据库连接池
-from db import FAConnection
+from app import create_app
 
-app = FastAPI()
 
-app.mount("/static/", StaticFiles(directory=FILE_STORAGE), name="staticFiles")
+app = create_app()
+
+print('创建FastAPI主程序成功!')
 
 
 @app.get("/", tags=["主页"])
@@ -28,8 +26,6 @@ async def favicon():
     favicon_path = os.path.join(FILE_STORAGE, "favicon.ico")
     return FileResponse(favicon_path, filename="favicon.ico")
 
-
-app.include_router(router, prefix='/api')
 
 if __name__ == '__main__':
     import uvicorn

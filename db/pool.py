@@ -19,7 +19,6 @@ def get_converters():
     return conversions
 
 
-print('正在创建数据库连接池...')
 # 创建连接池
 fa_pool = PooledDB(
     creator=MySQLdb, mincached=5, maxcached=10,
@@ -27,4 +26,4 @@ fa_pool = PooledDB(
     blocking=True,
     **work_db_params
 )
-print('创建连接池完成!')
+print(f'创建FA数据库连接池: {id(fa_pool)}')

@@ -5,3 +5,4 @@
 # 使用连接池连接MySQL,并提供操作的接口
 
 from .work import FAConnection
+from .redis_pool import RedisConnection

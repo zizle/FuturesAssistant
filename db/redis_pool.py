@@ -4,9 +4,9 @@
 # @Author: zizle
 
 from redis import Redis, ConnectionPool
-from settings import DATABASE
+from configs import DB_CONFIGS
 
-params = DATABASE["redis"]
+params = DB_CONFIGS["redis"]
 
 conn_pool = ConnectionPool(decode_responses=True, **params)  # 利用文件导入的"单例"模式设置连接池
 print('创建redis连接池:', id(conn_pool))
@@ -14,7 +14,6 @@ print('创建redis连接池:', id(conn_pool))
 
 class RedisConnection(object):
     def __init__(self):
-        print(id(conn_pool))
         self.redis_conn = Redis(connection_pool=conn_pool)
 
     def __enter__(self):

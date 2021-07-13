@@ -9,6 +9,8 @@ import time
 import logging
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))  # 项目根路径
+TOKEN_EXPIRES = 86400
+ADMIN_FLAG = 'backendAdmin'  # 后台用户的access标记
 
 FILE_STORAGE = "E:/FILE_STORAGE/"                                                       # 项目文件路径
 WECHAT_FILE_PATH = "E:/WeChatFiles/WeChat Files/wxid_ebc8cjnovw1f22/FileStorage/File/"  # 微信自动保存的文件路径

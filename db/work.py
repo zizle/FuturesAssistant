@@ -9,7 +9,8 @@ from configs import logger
 
 
 class FAConnection(object):
-    def __init__(self):
+    def __init__(self, conn_name=''):
+        self.conn_name = conn_name
         self.conn = fa_pool.connection()  # 从连接池取得一个连接
         self.cursor = self.conn.cursor(MySQLdb.cursors.DictCursor)  # 连接的游标
 
@@ -36,7 +37,7 @@ class FAConnection(object):
         except Exception as e:
             self.rollback()
             is_success = False
-            logger.error('操作数据库失败:{}'.format(e))
+            logger.error('业务{}操作数据库失败:{}'.format(self.conn_name, e))
         else:
             self.commit()
         finally:

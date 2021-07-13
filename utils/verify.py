@@ -78,7 +78,7 @@ def generate_code_image(redis_key):
     text = ''.join(tmp_list)
     with RedisZ() as r:
         r.set(name=redis_key, value=text, ex=120)
-    return buf
+    return buf, text
 
 
 def verify_password(plain_password, hashed_password):
