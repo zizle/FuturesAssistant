@@ -20,7 +20,7 @@ exchange_dsas_api = APIRouter()  # dsas: data set analysis system
 @exchange_dsas_api.get('/price-position/', summary='查询指定日期的指数持仓数据')
 async def get_price_position(ds: datetime.datetime = Depends(require_start_date),
                              de: datetime.datetime = Depends(require_end_date),
-                             c: str = Query(None, min_length=2, max_length=6)):
+                             c: str = Query(None, min_length=1, max_length=6)):
     db = FAConnection(conn_name='Query Price Position')
     if c:  # 指定合约(合约是品种时为主力合约)
         query_sql = 'SELECT quotes_ts,variety_en,contract,close_price,position_price,position_volume,' \

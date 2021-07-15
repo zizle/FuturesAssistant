@@ -1,0 +1,27 @@
+-- 后台 category=1
+
+1 菜单管理 - menu_manage
+    系统菜单 - system_menu
+
+2 运营管理 - operation:
+    客户端管理 - op_client
+    用户管理 - op_user
+    品种管理 - op_variety
+
+3 数据库管理 - data_manage
+    日交易行情 - dat_daily_quotes
+    日持仓数据 - dat_daily_rank
+    指数持仓 - dat_price_position
+    现货价格 - dat_spot_price
+
+4 资讯管理 - message_manage
+    交易所新闻 - msg_notice
+    短讯通 - msg_short
+    交易策略 - msg_strategy
+    广告管理 - msg_advertisement
+
+-- web端 category=2
+1 数据管理 - web_data_manage
+    现货报价 - web_spot_price
+
+-- 客户端 category=3

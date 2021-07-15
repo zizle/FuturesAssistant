@@ -68,3 +68,17 @@ CREATE TABLE IF NOT EXISTS `dat_futures_price_position` (
 `is_active` BIT NOT NULL DEFAULT 1 COMMENT '有效',
 UNIQUE KEY `dtc`(`quotes_ts`,`contract`)
 ) DEFAULT CHARSET='utf8mb4';
+
+
+CREATE TABLE IF NOT EXISTS `dat_spot_price` (
+`id` INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT COMMENT '现货价格数据',
+`create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+`update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+`creator` INT NOT NULL DEFAULT 0 COMMENT '创建者',
+`spot_ts` INT NOT NULL COMMENT '日期时间戳',
+`variety_en` VARCHAR(2) NOT NULL COMMENT '品种',
+`price` DOUBLE(16,3) NOT NULL COMMENT '现货价格',
+`src_note` VARCHAR(128) NOT NULL DEFAULT '' COMMENT '采集地',
+`is_active` BIT NOT NULL DEFAULT 1 COMMENT '有效',
+UNIQUE KEY `dv`(`spot_ts`,`variety_en`)
+) DEFAULT CHARSET='utf8mb4';

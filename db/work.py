@@ -27,13 +27,17 @@ class FAConnection(object):
     def rollback(self):
         self.conn.rollback()
 
-    def execute(self, sql, param=None, keep_conn=False):
+    def execute(self, sql, param=None, many=False, keep_conn=False):
         self.begin()
         is_success = True
+        count = 0
         if param is None:
             param = []
         try:
-            self.cursor.execute(sql, param)
+            if many:
+                count = self.cursor.executemany(sql, param)
+            else:
+                count = self.cursor.execute(sql, param)
         except Exception as e:
             self.rollback()
             is_success = False
@@ -43,7 +47,7 @@ class FAConnection(object):
         finally:
             if not keep_conn:
                 self.close()
-            return is_success
+            return count, is_success
 
     def execute_tasks(self, sql_list, param_list, keep_conn=False):  # 事务方式执行
         self.begin()

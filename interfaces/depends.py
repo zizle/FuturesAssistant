@@ -12,7 +12,6 @@ from configs import ADMIN_FLAG
 # 解析cookie或headers中的Authorization字段并验证是否登录(Cookie在FastAPI中被解析为查询参数一样的用法)
 # headers再FastAPI与Query,Cookies等一样的用法且自动转义小写,中横线转为下划线
 async def logged_require(authorization: str = Header('')):
-    print(authorization)
     person = decrypt_access_token(authorization)
     if not person:
         raise HTTPException(status_code=401, detail='Un Authorization!')

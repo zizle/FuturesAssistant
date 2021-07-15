@@ -6,5 +6,7 @@ from fastapi import APIRouter
 from .exchange_rate import exchangelib_api
 
 datalib_router = APIRouter()
+from .spot import spot_api
 
 datalib_router.include_router(exchangelib_api)
+datalib_router.include_router(spot_api, prefix='/spot')
